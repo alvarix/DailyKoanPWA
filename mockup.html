@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#faf9f6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Daily Koan — Mockup</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            paper: {
+              50: '#faf9f6',   /* cream background */
+              100: '#f5f3ef',
+              200: '#ede9e1',
+            },
+            ink: {
+              950: '#1c1917',  /* near-black text */
+              800: '#44403c',  /* secondary text */
+              600: '#78716c',
+            },
+            gold: {
+              500: '#d97706',
+              400: '#f59e0b',
+            }
+          },
+          fontFamily: {
+            serif: ['Georgia', 'Cambria', 'Times New Roman', 'serif'],
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
+          },
+          lineHeight: {
+            'prose': '1.72',
+          }
+        }
+      }
+    }
+  </script>
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧘%3C/text%3E%3C/svg%3E">
+
+  <style>
+    html { background-color: #faf9f6; }
+    body { -webkit-tap-highlight-color: transparent; }
+    .koan-body {
+      text-wrap: pretty;
+    }
+    /* Very subtle animated ellipsis for loading / live feel */
+    .dot-pulse::after {
+      content: '.';
+      animation: dots 1.4s steps(3) infinite;
+    }
+    @keyframes dots {
+      0%, 20% { content: '.'; }
+      40% { content: '..'; }
+      60%, 100% { content: '...'; }
+    }
+  </style>
+</head>
+<body class="bg-paper-50 text-ink-950 font-sans min-h-screen antialiased">
+
+  <!-- Floating top-right bell -->
+  <button onclick="showHelp()"
+          class="fixed top-5 right-5 z-50 flex items-center justify-center w-10 h-10 rounded-full bg-paper-100 hover:bg-paper-200 text-ink-800 transition-colors shadow-sm border border-paper-200"
+          aria-label="Enable notifications">
+    <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-3.313 3.022 23.848 23.848 0 005.454 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0v3.75a2.143 2.143 0 01-2.143 2.143H8.143A2.143 2.143 0 016 20.732v-3.75m9.714 0h-9.714"/>
+    </svg>
+  </button>
+
+  <main class="max-w-[640px] mx-auto px-7 sm:px-10 pt-20 pb-28">
+
+    <!-- Date / context -->
+    <div class="mb-10 flex items-center gap-3 text-xs tracking-widest uppercase text-ink-600">
+      <span>October 1, 2025</span>
+      <span class="w-1 h-1 rounded-full bg-ink-600/40"></span>
+      <span>Mumonkan 29</span>
+    </div>
+
+    <!-- Koan title -->
+    <h1 class="text-2xl sm:text-[28px] font-sans font-semibold tracking-tight leading-snug text-ink-950 mb-8">
+      Hui-neng's Flag
+    </h1>
+
+    <!-- The koan body -->
+    <blockquote class="text-[19px] sm:text-[21px] leading-prose font-serif text-ink-950 koan-body mb-14">
+      Two monks were arguing about the temple flag waving in the wind. One said, “The flag moves.” The other said, “The wind moves.” They argued back and forth but could not agree. Hui-neng, the sixth patriarch, said: “Gentlemen! It is not the flag that moves. It is not the wind that moves. It is your mind that moves.” The two monks were struck with awe.
+    </blockquote>
+
+    <!-- Source / meta -->
+    <div class="flex items-center gap-2 text-[13px] text-ink-600 mb-14">
+      <span class="text-ink-600">Wumen Huikai</span>
+      <span class="text-ink-200">·</span>
+      <span class="text-ink-600">Faxing Temple, Guangzhou, China</span>
+      <span class="text-ink-200">·</span>
+      <span class="text-ink-600">c. 676</span>
+    </div>
+
+    <!-- Commentary 1 -->
+    <details open class="group mb-6">
+      <summary class="cursor-pointer list-none">
+        <div class="flex items-center gap-2 mb-3 text-[13px] tracking-wide uppercase text-ink-600 select-none">
+          <span class="inline-block w-[14px] transition-transform group-open:rotate-90 duration-200">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </span>
+          <span>Commentary by Mumon</span>
+        </div>
+      </summary>
+      <p class="text-base leading-prose text-ink-800 font-serif mb-6">
+        It is not the wind, not the flag, not the mind. Where do you see the Patriarch's true meaning? If you see it intimately, you will see the two monks buying iron while trying to get gold.
+      </p>
+    </details>
+
+    <!-- Commentary 2 -->
+    <details class="group mb-6">
+      <summary class="cursor-pointer list-none">
+        <div class="flex items-center gap-2 mb-3 text-[13px] tracking-wide uppercase text-ink-600 select-none">
+          <span class="inline-block w-[14px] transition-transform group-open:rotate-90 duration-200">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </span>
+          <span>Commentary by Traditional</span>
+        </div>
+      </summary>
+      <p class="text-base leading-prose text-ink-800 font-serif mb-6">
+        Hui-neng spoke to cut off their dualistic arguing. If you say the mind moves, you fall into a trap. If you say it doesn't move, you miss the point completely.
+      </p>
+    </details>
+
+    <!-- Verse -->
+    <div class="mt-10 pt-8 border-t border-paper-200">
+      <p class="text-[13px] tracking-wide uppercase text-ink-600 mb-4">Verse by Mumon</p>
+      <p class="text-[17px] leading-prose text-ink-800 font-serif whitespace-pre-line">
+Wind, flag, and mind moving together,
+All talk falls short of the mark.
+Only knowing how to open the mouth,
+He completely missed the great path.</p>
+    </div>
+
+    <!-- Next button -->
+    <div class="mt-14 flex justify-center">
+      <button onclick="alert('Next koan')"
+              class="flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-ink-600 bg-paper-100 hover:bg-paper-200 border border-paper-200 rounded-full transition-colors">
+        Next Koan
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+
+  </main>
+
+  <!-- Install help (hidden by default) -->
+  <div id="iosHelp" class="hidden fixed inset-0 bg-ink-950/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-6" onclick="hideHelp(event)">
+    <div class="bg-paper-50 rounded-2xl max-w-sm w-full p-6 shadow-2xl" onclick="event.stopPropagation()">
+      <h3 class="text-lg font-semibold text-ink-950 mb-4">Enable Daily Koan Notifications</h3>
+      <ol class="list-decimal list-inside space-y-2.5 text-sm text-ink-800 mb-8">
+        <li>Tap <strong class="text-ink-950">Share</strong> in Safari.</li>
+        <li>Choose <strong class="text-ink-950">Add to Home Screen</strong>.</li>
+        <li>Open the app from your Home Screen.</li>
+        <li>Tap the bell and allow notifications.</li>
+      </ol>
+      <button onclick="hideHelp()" class="w-full py-2.5 bg-paper-200 hover:bg-paper-200/80 text-ink-950 font-semibold text-sm rounded-xl transition-colors">
+        Got it
+      </button>
+    </div>
+  </div>
+
+  <script>
+    function showHelp() { document.getElementById('iosHelp').classList.remove('hidden'); }
+    function hideHelp(e) { if (!e || e.target.id === 'iosHelp') document.getElementById('iosHelp').classList.add('hidden'); }
+  </script>
+
+</body>
+</html>

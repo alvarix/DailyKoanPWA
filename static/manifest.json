@@ -1,0 +1,23 @@
+{
+  "name": "Daily Koan",
+  "short_name": "Koan",
+  "description": "A daily Zen koan delivered to your device.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1c1917",
+  "theme_color": "#1c1917",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
