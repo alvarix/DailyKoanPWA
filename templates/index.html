@@ -1,28 +1,29 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#1c1917">
+  <meta name="theme-color" content="#faf9f6">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Daily Koan</title>
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
-      darkMode: 'class',
       theme: {
         extend: {
           colors: {
-            zen: {
+            paper: {
+              50: '#faf9f6',
+              100: '#f5f3ef',
+              200: '#ede9e1',
+            },
+            ink: {
               950: '#1c1917',
-              900: '#292524',
               800: '#44403c',
-              700: '#57534e',
-              100: '#f5f5f4',
-              50: '#fafaf9',
+              600: '#78716c',
             },
             gold: {
               500: '#d97706',
@@ -30,11 +31,11 @@
             }
           },
           fontFamily: {
-            serif: ['Georgia', 'Cambria', 'serif'],
-            sans: ['system-ui', '-apple-system', 'sans-serif'],
+            serif: ['Georgia', 'Cambria', 'Times New Roman', 'serif'],
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
           },
           lineHeight: {
-            'prose': '1.65',
+            'prose': '1.72',
           }
         }
       }
@@ -43,156 +44,139 @@
 
   <!-- Alpine.js -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <!-- HTMX -->
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
 
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/static/icon-192.png">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E3E🧘%3C/text%3E%3C/svg%3E">
 
   <style>
-    /* Near-black instead of pure black */
-    html { background-color: #1c1917; }
+    html { background-color: #faf9f6; }
     body { -webkit-tap-highlight-color: transparent; }
-    .koan-text { hyphens: auto; }
+    .koan-body { text-wrap: pretty; }
   </style>
 </head>
-<body class="bg-zen-950 text-zen-100 font-sans min-h-screen antialiased selection:bg-gold-500/30"
+<body class="bg-paper-50 text-ink-950 font-sans min-h-screen antialiased"
       x-data="koanApp()"
       x-init="init()">
 
-  <!-- Top bar -->
-  <header class="max-w-2xl mx-auto px-6 pt-10 pb-6">
-    <div class="flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <span class="text-2xl leading-none opacity-80">🧘</span>
-        <h1 class="text-xl font-semibold tracking-tight text-zen-100 leading-none">
-          Daily Koan
-        </h1>
-      </div>
-      <button @click="toggleNotifications()"
-              class="flex items-center gap-2 px-4 py-2 bg-zen-900 hover:bg-zen-800 text-zen-100 text-sm font-medium rounded-full transition-colors border border-zen-800"
-              :class="{ 'border-gold-500/50 text-gold-400': subscribed }">
-        <svg x-show="!subscribed" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-3.313 3.022 23.848 23.848 0 005.454 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0v3.75a2.143 2.143 0 01-2.143 2.143H8.143A2.143 2.143 0 016 20.732v-3.75m9.714 0h-9.714"/></svg>
-        <svg x-show="subscribed" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-        <span x-text="subscribed ? 'Subscribed' : 'Notify me'"></span>
-      </button>
+  <!-- Floating bell -->
+  <button @click="toggleNotifications()"
+          class="fixed top-5 right-5 z-50 flex items-center justify-center w-10 h-10 rounded-full bg-paper-100 hover:bg-paper-200 text-ink-800 transition-colors shadow-sm border border-paper-200"
+          :class="{ 'text-gold-500 border-gold-400/40 bg-gold-50': subscribed }"
+          aria-label="Enable notifications">
+    <svg x-show="!subscribed" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-3.313 3.022 23.848 23.848 0 005.454 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0v3.75a2.143 2.143 0 01-2.143 2.143H8.143A2.143 2.143 0 016 20.732v-3.75m9.714 0h-9.714"/>
+    </svg>
+    <svg x-show="subscribed" class="w-[18px] h-[18px]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+  </button>
+
+  <main class="max-w-[640px] mx-auto px-7 sm:px-10 pt-20 pb-28">
+
+    <!-- Date / context -->
+    <div class="mb-10 flex items-center gap-3 text-xs tracking-widest uppercase text-ink-600">
+      <span x-text="today"></span>
+      <span class="w-1 h-1 rounded-full bg-ink-600/40"></span>
+      <span>{{ koan.source_publication }}</span>
     </div>
-  </header>
 
-  <!-- Main content -->
-  <main class="max-w-2xl mx-auto px-6 pb-20">
+    <!-- Title -->
+    <h1 class="text-2xl sm:text-[28px] font-sans font-semibold tracking-tight leading-snug text-ink-950 mb-8">
+      {{ koan.title }}
+    </h1>
 
-    <!-- Koan card -->
-    <article class="bg-zen-900 border border-zen-800 rounded-2xl p-8 md:p-10 shadow-lg mb-8">
-      <h2 class="text-2xl md:text-3xl font-serif font-semibold text-zen-100 leading-tight tracking-tight mb-3">
-        {{ koan.title }}
-      </h2>
-      <div class="flex items-center gap-2 text-sm text-zen-700 mb-8">
-        <span>{{ koan.source_author }}</span>
-        <span>·</span>
-        <span>{{ koan.source_publication }}</span>
-        <span>·</span>
-        <span>{{ koan.place_of_koan }}</span>
-        <span>·</span>
-        <span>{{ koan.date_of_koan }}</span>
-      </div>
+    <!-- Koan body -->
+    <blockquote class="text-[19px] sm:text-[21px] leading-prose font-serif text-ink-950 koan-body mb-14">
+      {{ koan.koan_text }}
+    </blockquote>
 
-      <blockquote class="text-lg md:text-xl leading-prose text-zen-100 font-serif mb-8 koan-text">
-        {{ koan.koan_text | nl2br }}
-      </blockquote>
+    <!-- Meta -->
+    <div class="flex items-center gap-2 text-[13px] text-ink-600 mb-14">
+      <span>{{ koan.source_author }}</span>
+      <span class="text-paper-200">·</span>
+      <span>{{ koan.place_of_koan }}</span>
+      <span class="text-paper-200">·</span>
+      <span>{{ koan.date_of_koan }}</span>
+    </div>
 
-      <!-- Commentary -->
-      <div class="space-y-6 border-t border-zen-800 pt-6 mb-6">
-        <div x-data="{ open: true }">
-          <button @click="open = !open" class="flex items-center gap-2 text-sm font-medium text-gold-400 hover:text-gold-500 mb-2 transition-colors">
-            <span x-text="open ? '▾' : '▸'"></span>
-            Commentary by {{ koan.commentary_author }}
-          </button>
-          <p x-show="open" x-transition class="text-base leading-prose text-zen-400 mb-4">
-            {{ koan.commentary }}
-          </p>
-        </div>
+    <!-- Commentaries -->
+    <div class="space-y-6 mb-6">
+      <details open class="group">
+        <summary class="cursor-pointer list-none">
+          <div class="flex items-center gap-2 mb-3 text-[13px] tracking-wide uppercase text-ink-600 select-none">
+            <span class="inline-block w-[14px] transition-transform group-open:rotate-90 duration-200">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </span>
+            <span>Commentary by {{ koan.commentary_author }}</span>
+          </div>
+        </summary>
+        <p class="text-base leading-prose text-ink-800 font-serif mb-6">
+          {{ koan.commentary }}
+        </p>
+      </details>
 
-        {% if koan.commentary_2 %}
-        <div x-data="{ open: false }">
-          <button @click="open = !open" class="flex items-center gap-2 text-sm font-medium text-gold-400 hover:text-gold-500 mb-2 transition-colors">
-            <span x-text="open ? '▾' : '▸'"></span>
-            Commentary by {{ koan.commentary_2_author }}
-          </button>
-          <p x-show="open" x-transition class="text-base leading-prose text-zen-400 mb-4">
-            {{ koan.commentary_2 }}
-          </p>
-        </div>
-        {% endif %}
-      </div>
-
-      <!-- Verse -->
-      {% if koan.verse %}
-      <div class="border-t border-zen-800 pt-6">
-        <p class="text-sm font-medium text-gold-400 mb-3">Verse by {{ koan.verse_author }}</p>
-        <p class="text-base leading-prose text-zen-400 font-serif whitespace-pre-line">{{ koan.verse }}</p>
-      </div>
+      {% if koan.commentary_2 %}
+      <details class="group">
+        <summary class="cursor-pointer list-none">
+          <div class="flex items-center gap-2 mb-3 text-[13px] tracking-wide uppercase text-ink-600 select-none">
+            <span class="inline-block w-[14px] transition-transform group-open:rotate-90 duration-200">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </span>
+            <span>Commentary by {{ koan.commentary_2_author }}</span>
+          </div>
+        </summary>
+        <p class="text-base leading-prose text-ink-800 font-serif mb-6">
+          {{ koan.commentary_2 }}
+        </p>
+      </details>
       {% endif %}
-
-      <!-- Next button -->
-      <div class="flex justify-center mt-8 pt-6 border-t border-zen-800">
-        <a href="/koan/{{ (koan_index + 1) % total_koans }}"
-           class="inline-flex items-center gap-2 px-6 py-3 bg-zen-800 hover:bg-zen-700 text-zen-100 text-sm font-medium rounded-lg transition-colors">
-          Next Koan
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
-        </a>
-      </div>
-    </article>
-
-    <!-- Install prompt (hidden if installed) -->
-    <div x-show="showInstallPrompt" x-transition class="mb-8 p-5 bg-zen-900 border border-zen-800 rounded-xl text-center">
-      <p class="text-sm text-zen-700 mb-3">
-        Add this to your Home Screen to receive daily notifications.
-      </p>
-      <button @click="dismissInstall()" class="text-xs text-zen-600 underline">Dismiss</button>
     </div>
 
-    <!-- iOS push instructions -->
-    <div x-show="iosHelpVisible" x-transition
-         class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-6"
-         @click.away="iosHelpVisible = false">
-      <div class="bg-zen-950 border border-zen-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl">
-        <h3 class="text-lg font-semibold text-zen-100 mb-4">Enable Daily Koan Notifications</h3>
-        <ol class="list-decimal list-inside space-y-2 text-sm text-zen-400 mb-6">
-          <li>Tap the <strong class="text-zen-200">Share</strong> button in Safari.</li>
-          <li>Scroll down and tap <strong class="text-zen-200">Add to Home Screen</strong>.</li>
-          <li>Open the app from your Home Screen.</li>
-          <li>Tap <strong class="text-zen-200">Notify me</strong> and allow notifications.</li>
-        </ol>
-        <button @click="iosHelpVisible = false"
-                class="w-full py-2.5 bg-gold-500 hover:bg-gold-400 text-zen-950 font-semibold text-sm rounded-lg transition-colors">
-          Got it
-        </button>
-      </div>
+    <!-- Verse -->
+    {% if koan.verse %}
+    <div class="mt-10 pt-8 border-t border-paper-200">
+      <p class="text-[13px] tracking-wide uppercase text-ink-600 mb-4">Verse by {{ koan.verse_author }}</p>
+      <p class="text-[17px] leading-prose text-ink-800 font-serif whitespace-pre-line">{{ koan.verse }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Next button -->
+    <div class="mt-14 flex justify-center">
+      <a href="/koan/{{ (koan_index + 1) % total_koans }}"
+         class="flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-ink-600 bg-paper-100 hover:bg-paper-200 border border-paper-200 rounded-full transition-colors">
+        Next Koan
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
     </div>
 
   </main>
 
-  <footer class="max-w-2xl mx-auto px-6 pb-10 text-center text-xs text-zen-700">
-    <p class="mb-2">Serving daily koans from the Zen tradition.</p>
-    <a href="/" class="underline hover:text-zen-600">Today's Koan</a>
-  </footer>
+  <!-- iOS help modal -->
+  <div x-show="iosHelpVisible" x-transition
+       class="fixed inset-0 bg-ink-950/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-6"
+       @click.away="iosHelpVisible = false">
+    <div class="bg-paper-50 rounded-2xl max-w-sm w-full p-6 shadow-2xl">
+      <h3 class="text-lg font-semibold text-ink-950 mb-4">Enable Daily Koan Notifications</h3>
+      <ol class="list-decimal list-inside space-y-2.5 text-sm text-ink-800 mb-8">
+        <li>Tap <strong class="text-ink-950">Share</strong> in Safari.</li>
+        <li>Choose <strong class="text-ink-950">Add to Home Screen</strong>.</li>
+        <li>Open the app from your Home Screen.</li>
+        <li>Tap the bell and allow notifications.</li>
+      </ol>
+      <button @click="iosHelpVisible = false" class="w-full py-2.5 bg-paper-200 hover:bg-paper-200/80 text-ink-950 font-semibold text-sm rounded-xl transition-colors">
+        Got it
+      </button>
+    </div>
+  </div>
 
   <script>
     function koanApp() {
       return {
         subscribed: false,
-        showInstallPrompt: false,
         iosHelpVisible: false,
         vapidPublicKey: '{{ vapid_public_key }}',
-        totalKoans: {{ total_koans }},
+        today: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
 
         async init() {
           this.checkSubscription();
-          if (this.isIOS() && !this.isStandalone()) {
-            this.showInstallPrompt = true;
-          }
         },
 
         isIOS() {
@@ -205,16 +189,9 @@
                  document.referrer.includes('ios-app://');
         },
 
-        dismissInstall() {
-          this.showInstallPrompt = false;
-          localStorage.setItem('dismiss_install', '1');
-        },
-
         urlBase64ToUint8Array(base64String) {
           const padding = '='.repeat((4 - base64String.length % 4) % 4);
-          const base64 = (base64String + padding)
-            .replace(/\-/g, '+')
-            .replace(/_/g, '/');
+          const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
           const rawData = window.atob(base64);
           return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
         },
@@ -236,7 +213,6 @@
             return;
           }
 
-          // iOS requires standalone PWA
           if (this.isIOS() && !this.isStandalone()) {
             this.iosHelpVisible = true;
             return;
@@ -253,7 +229,6 @@
             let sub = await reg.pushManager.getSubscription();
 
             if (sub) {
-              // Unsubscribe
               await sub.unsubscribe();
               await fetch('/api/unsubscribe', {
                 method: 'POST',
@@ -262,7 +237,6 @@
               });
               this.subscribed = false;
             } else {
-              // Subscribe
               sub = await reg.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: this.urlBase64ToUint8Array(this.vapidPublicKey)
@@ -282,7 +256,6 @@
       };
     }
 
-    // Register service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then(reg => console.log('SW registered:', reg.scope))

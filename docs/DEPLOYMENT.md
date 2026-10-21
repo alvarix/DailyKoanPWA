@@ -1,66 +1,70 @@
 # Daily Koan PWA — Deployment Guide
 
+## Option: Existing Droplet + Subdomain (Recommended)
+
+If you already have a DigitalOcean droplet running a low-traffic site, the cheapest and simplest path is to host the Daily Koan app **on the same droplet** under a subdomain like `koan.alvarsirlin.dev`.
+
+Your existing site continues to run undisturbed. The new app runs on a different local port, and nginx routes by subdomain.
+
+---
+
 ## Prerequisites
 
-- A fresh Ubuntu 24.04 LTS DigitalOcean droplet (or any VPS)
-- A domain name pointing to the droplet's IP (`A` and `AAAA` records)
-- SSH access with root or sudo privileges
-- `doctl` CLI (optional) or DigitalOcean web console
+- An existing Ubuntu droplet with nginx already running
+- A domain with DNS managed where you can add an A record
+- SSH access as root or a sudo user
+- Your existing site should be using nginx (check with `sudo nginx -t`)
 
 ---
 
-## 1. Create the Droplet
+## 1. DNS Setup
 
-1. In the DigitalOcean dashboard, create a new droplet:
-   - Distribution: Ubuntu 24.04 (LTS)
-   - Plan: Basic, $6/mo (1 CPU / 512MB RAM is fine for this low-traffic app)
-   - Region: closest to your users
-   - Add your SSH key
-2. Note the public IPv4 address.
-3. (Optional) Add a firewall rule: allow inbound TCP on 22, 80, 443 only.
+Add an A record for your subdomain pointing to the same droplet IP:
 
----
-
-## 2. Domain Setup
-
-Point your domain's A record to the droplet IP:
-```
-# DNS A record
-your-domain.com     A     <DROPLET_IP>
-www.your-domain.com CNAME your-domain.com
+```text
+koan.alvarsirlin.dev     A     <DROPLET_IP>
 ```
 
-Replace all occurrences of `your-domain.com` in configs below with your actual domain.
-
----
-
-## 3. Server Setup (SSH)
-
-SSH into your droplet:
+Wait a few minutes, then verify:
 ```bash
-ssh root@your-domain.com
+dig +short koan.alvarsirlin.dev
 ```
 
-Install dependencies:
+---
+
+## 2. SSH In & Prep
+
 ```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3-pip python3-venv nginx git certbot python3-certbot-nginx
+ssh root@<DROPLET_IP>
+```
+
+Ensure you have the basics:
+```bash
+sudo apt update
+sudo apt install -y python3-pip python3-venv git certbot python3-certbot-nginx
 ```
 
 Create the app user and directory:
 ```bash
-sudo useradd -r -s /bin/false koan
+sudo useradd -r -s /bin/false koan 2>/dev/null || true
 sudo mkdir -p /opt/dailykoan
 sudo chown -R koan:koan /opt/dailykoan
 ```
 
 ---
 
-## 4. Deploy the Application
+## 3. Deploy the Code
 
-Clone the repo (or scp your local files):
+Option A — clone from GitHub (preferred):
 ```bash
 git clone https://github.com/YOUR_USERNAME/DailyKoanPWA.git /opt/dailykoan
+```
+
+Option B — if you haven't created the repo yet:
+```bash
+# From your laptop, copy files to the droplet
+rsync -avz --exclude=venv --exclude=subscriptions.db --exclude=.git \
+  /Users/alvarsirlin/Sites/apps/DailyKoanPWA/ root@<DROPLET_IP>:/opt/dailykoan/
 ```
 
 Set up the virtual environment:
@@ -71,7 +75,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Generate VAPID keys (if not committed):
+Generate VAPID keys:
 ```bash
 python3 init_vapid.py
 ```
@@ -81,7 +85,12 @@ Initialize the database:
 python3 init_db.py
 ```
 
-Set correct ownership:
+Generate icons:
+```bash
+python3 init_icons.py
+```
+
+Lock down permissions:
 ```bash
 sudo chown -R koan:koan /opt/dailykoan
 sudo chmod 600 /opt/dailykoan/vapid_private.pem
@@ -89,9 +98,16 @@ sudo chmod 600 /opt/dailykoan/vapid_private.pem
 
 ---
 
-## 5. Gunicorn Systemd Service
+## 4. Gunicorn on a Free Port
 
-Create `/etc/systemd/system/dailykoan.service`:
+Check what ports your existing app uses:
+```bash
+sudo ss -tlnp | grep -E ':\d+'
+```
+
+Pick an **unused** port (e.g., `8001` if `8000` is taken). Create the systemd service file:
+
+`/etc/systemd/system/dailykoan.service`:
 ```ini
 [Unit]
 Description=Daily Koan PWA
@@ -102,12 +118,10 @@ User=koan
 Group=koan
 WorkingDirectory=/opt/dailykoan
 Environment="PATH=/opt/dailykoan/venv/bin"
-# Set FLASK_HOST=127.0.0.1 and no debug for production
 Environment="FLASK_HOST=127.0.0.1"
 Environment="FLASK_DEBUG=0"
-# Update BASE_URL for the push sender
-Environment="BASE_URL=https://your-domain.com/"
-ExecStart=/opt/dailykoan/venv/bin/gunicorn app:app -b 127.0.0.1:8000 --workers 1 --timeout 30
+Environment="BASE_URL=https://koan.alvarsirlin.dev/"
+ExecStart=/opt/dailykoan/venv/bin/gunicorn app:app -b 127.0.0.1:8001 --workers 1 --timeout 30
 Restart=on-failure
 
 [Install]
@@ -124,57 +138,18 @@ sudo systemctl status dailykoan
 
 ---
 
-## 6. Daily Push Timer
+## 5. nginx Subdomain Config
 
-The push sender must run every day at your preferred time (e.g., 08:00 UTC).
+Create a new server block. **Do not touch your existing site's config.**
 
-Create `/etc/systemd/system/dailykoan-push.service`:
-```ini
-[Unit]
-Description=Daily Koan Push Sender
-
-[Service]
-Type=oneshot
-User=koan
-WorkingDirectory=/opt/dailykoan
-Environment="PATH=/opt/dailykoan/venv/bin"
-Environment="BASE_URL=https://your-domain.com/"
-ExecStart=/opt/dailykoan/venv/bin/python push_sender.py
-```
-
-Create `/etc/systemd/system/dailykoan-push.timer`:
-```ini
-[Unit]
-Description=Daily Koan Push Timer
-
-[Timer]
-OnCalendar=*-*-* 08:00:00
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-```
-
-Enable and start:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable dailykoan-push.timer
-sudo systemctl start dailykoan-push.timer
-systemctl list-timers dailykoan-push.timer
-```
-
----
-
-## 7. Nginx & HTTPS
-
-Create `/etc/nginx/sites-available/dailykoan`:
+`/etc/nginx/sites-available/koan`:
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com;
+    server_name koan.alvarsirlin.dev;
 
     location / {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:8001;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -189,59 +164,136 @@ server {
 }
 ```
 
+Enable it:
+```bash
+sudo ln -s /etc/nginx/sites-available/koan /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+---
+
+## 6. HTTPS with certbot
+
+Let certbot handle the subdomain SSL:
+```bash
+sudo certbot --nginx -d koan.alvarsirlin.dev
+```
+
+Certbot will:
+1. Detect the new server block
+2. Obtain a certificate
+3. Auto-inject the HTTPS redirect and SSL params
+4. Set up auto-renewal
+
+Verify:
+```bash
+sudo certbot certificates
+```
+
+---
+
+## 7. Daily Push Timer
+
+Create the systemd timer that sends the daily koan at 08:00 UTC.
+
+`/etc/systemd/system/dailykoan-push.service`:
+```ini
+[Unit]
+Description=Daily Koan Push Sender
+
+[Service]
+Type=oneshot
+User=koan
+WorkingDirectory=/opt/dailykoan
+Environment="PATH=/opt/dailykoan/venv/bin"
+Environment="BASE_URL=https://koan.alvarsirlin.dev/"
+ExecStart=/opt/dailykoan/venv/bin/python push_sender.py
+```
+
+`/etc/systemd/system/dailykoan-push.timer`:
+```ini
+[Unit]
+Description=Daily Koan Push Timer
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
 Enable:
 ```bash
-sudo ln -s /etc/nginx/sites-available/dailykoan /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl restart nginx
+sudo systemctl daemon-reload
+sudo systemctl enable dailykoan-push.timer
+sudo systemctl start dailykoan-push.timer
+systemctl list-timers dailykoan-push.timer
 ```
-
-Obtain SSL certificate:
-```bash
-sudo certbot --nginx -d your-domain.com -d www.your-domain.com
-```
-
-Certbot will auto-configure HTTPS redirect and certificate renewal.
 
 ---
 
 ## 8. Test the PWA & Push
 
-1. Open `https://your-domain.com` in Safari on iOS 16.4+.
-2. Tap Share -> Add to Home Screen.
-3. Open the app from the Home Screen.
-4. Tap **Notify me** and allow notifications.
-5. Verify: `https://your-domain.com/api/subscriptions/count` should show `1`.
-6. (Optional) Manually run the push to test immediately:
-   ```bash
-   sudo -u koan bash -c 'cd /opt/dailykoan && source venv/bin/activate && BASE_URL=https://your-domain.com/ python push_sender.py'
+1. Open `https://koan.alvarsirlin.dev` in Safari on iOS 16.4+.
+2. Tap Share → Add to Home Screen.
+3. Open from Home Screen.
+4. Tap the bell and allow notifications.
+5. Verify subscription count:
+   ```text
+   https://koan.alvarsirlin.dev/api/subscriptions/count
    ```
-
----
-
-## 9. Update on Push (CI/CD Preview)
-
-Phase 2 will wire automatic deployment. For now, after pushing code:
-
-```bash
-ssh root@your-domain.com 'cd /opt/dailykoan && git pull && sudo systemctl restart dailykoan'
-```
-
-Or add a simple `deploy.sh` script and run it from GitHub Actions.
+6. Manually trigger a test push:
+   ```bash
+   sudo -u koan bash -c 'cd /opt/dailykoan && source venv/bin/activate && BASE_URL=https://koan.alvarsirlin.dev/ python push_sender.py'
+   ```
 
 ---
 
 ## Maintenance Commands
 
 ```bash
-# View logs
+# View app logs
 sudo journalctl -u dailykoan -f
+
+# View push sender logs
 sudo journalctl -u dailykoan-push.service -f
 
-# Restart services
+# Restart app after code changes
 sudo systemctl restart dailykoan
-sudo systemctl restart dailykoan-push.timer
 
-# Update certbot auto-renewal (usually automatic)
+# Renew SSL dry run
 sudo certbot renew --dry-run
+
+# List active timers
+systemctl list-timers
+
+# Quick health check
+curl -s https://koan.alvarsirlin.dev/api/today | python3 -m json.tool
 ```
+
+---
+
+## Updating After Code Changes
+
+Once your repo is on GitHub, a simple deploy command from your laptop:
+
+```bash
+ssh root@<DROPLET_IP> 'cd /opt/dailykoan && git pull && sudo systemctl restart dailykoan'
+```
+
+Or wire it into a GitHub Action for Phase 2 CI/CD.
+
+---
+
+## Why Not Vercel?
+
+Vercel's serverless model makes this project significantly more complex:
+
+- **No persistent SQLite** — subscription database would vanish on cold starts
+- **No native cron** — you'd need an external scheduler (e.g., GitHub Actions cron calling a Vercel function)
+- **Web Push state** — VAPID keys and subscriptions need external storage (Supabase, Upstash, etc.)
+- **Python/Flask** — not a first-class runtime; requires serverless adapter wrappers
+
+Your existing droplet + subdomain is the simplest, cheapest path.
