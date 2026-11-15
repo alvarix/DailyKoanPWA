@@ -66,17 +66,18 @@ def send_push(subscription, payload, vapid_private_key):
             data=json.dumps(payload),
             vapid_private_key=vapid_private_key,
             vapid_claims={
-                "sub": "mailto:admin@dailykoan.example"
-            },  # domain must match the subscription endpoint domain
+                "sub": "mailto:alvarix@gmail.com"
+            },  # VAPID contact claim; mailto: or https: URL. Old .example reserved TLD was an Apple-rejection suspect.
             ttl=86400,  # 24 hours
         )
         return True
     except WebPushException as e:
         if e.response and e.response.status_code in (404, 410):
-            # Subscription gone; will be cleaned up by caller
+            # Subscription confirmed gone (endpoint says so) - caller may remove it.
             return False
+        # 403 BadJwtToken, 429 rate-limit, network failure: KEEP, just report.
         print(f"Push error: {e}")
-        return False
+        return None
     except Exception as e:
         print(f"Unexpected push error: {e}")
         return None
