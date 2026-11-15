@@ -41,6 +41,20 @@ Mockup:
 ### Blockers
 None.
 
+## Phase 2 — Deployment runbooks (2026-11-05)
+
+### Completed
+- [x] Step-back analysis + peer review (plan-review: gemini-2.5-pro, 1 of 2 reviewers; all critiques incorporated)
+- [x] docs/002--llm--STANDALONE_DROPLET_DEPLOYMENT.md — fresh separate-droplet deploy, isolated from alfaForge; paired usr checklist created
+- [x] docs/003--llm--MIGRATE_TO_FORGE.md — later switch standalone -> Forge, same-as-wmw pattern (body-only fragment, Forge SSL), zero-downtime-ordered with exact rollback; paired usr checklist created
+
+### In Progress (execution, separate sessions)
+- [ ] Execute 002: create droplet, deploy, end-to-end iOS push test
+- [ ] After 2+ boring weeks on the standalone droplet: decide whether to execute 003 (re-enters Forge shared failure domain to save $6/mo)
+
+### Blockers
+None. Unknowns flagged inside each doc (DNS provider, GitHub repo URL, wmw project type in Forge UI, Forge template re-render behavior).
+
 ## Notes
 - iOS Web Push requires iOS 16.4+, Safari, and PWA added to Home Screen.
 - Notification payload limit on iOS is approximately 4KB. Long koans will be truncated with a "Read more" link.
