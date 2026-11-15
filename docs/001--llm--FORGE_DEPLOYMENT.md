@@ -48,7 +48,7 @@ Instead of manually creating nginx configs, add the koan app as a **new site** i
 2. Click **Edit Nginx Configuration**
 3. Replace the relevant location blocks with a reverse proxy to your Python app
 
-Forge's default config looks like this (the site ID number will differ):
+Forge's default config looks like this (your site ID number will differ):
 
 ```nginx
 server {
@@ -67,6 +67,7 @@ server {
     add_header X-Content-Type-Options "nosniff";
 
     index index.html index.htm;
+
     charset utf-8;
 
     # FORGE CONFIG (DO NOT REMOVE!)
