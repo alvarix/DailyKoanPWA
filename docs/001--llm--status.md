@@ -49,8 +49,12 @@ None.
 - [x] docs/001.11--llm--MIGRATE_TO_FORGE.md — later switch standalone -> Forge, same-as-wmw pattern (body-only fragment, Forge SSL), zero-downtime-ordered with exact rollback; paired usr checklist created
 
 ### In Progress (execution, separate sessions)
-- [ ] Execute 001.2: create droplet, deploy, end-to-end iOS push test
-- [ ] Domain: `dailykoan.duckdns.org` (DuckDNS free subdomain — no custom domain yet). Adopting a real domain later = origin change = re-subscribe event
+- [x] Execute 001.2: create droplet, deploy, end-to-end iOS push test — COMPLETE 2026-11-15 (dkStandalone, 157.230.56.177 redacted in repo, dailykoan.duckdns.org, HTTPS + timer live, alert received on device)
+- [x] Domain: `dailykoan.duckdns.org` (DuckDNS free subdomain — no custom domain yet). Adopting a real domain later = origin change = re-subscribe event
+
+### Deployment notes (2026-11-15)
+- Three live bugs found and fixed during deploy: (1) push_sender passed raw bytes to webpush -> crash; (2) send errors wrongfully deleted valid subscriptions (two valid iOS subscriptions destroyed before the fix); (3) VAPID key drift - app.py reads the key at gunicorn start, sender at run time, and multiple init_vapid.py runs invalidated every subscription (403 BadJwtToken). Rules now in 001.2: one key pair per install; restart dailykoan + re-subscribe all devices after any key change.
+- Remaining housekeeping: off-droplet backup of vapid pair + subscriptions.db (001.2 9.3 — keys irreplaceable, one production pair now exists); mark 001.3 checkboxes; optional nginx default-site removal.
 - [ ] After 2+ boring weeks on the standalone droplet: decide whether to execute 001.11 (re-enters Forge shared failure domain to save $6/mo)
 
 ### Blockers
