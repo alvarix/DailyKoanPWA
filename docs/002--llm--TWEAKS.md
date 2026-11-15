@@ -1,7 +1,23 @@
 # Daily Koan PWA — Tweaks Spec (Doc 002)
 
 Version: 002 — llm
-Status: SPEC ONLY — deliberately not executed. Alvar wants to live with the app first; implementation happens in a fresh session. Checkboxes belong in a future `002--usr--*` checklist cut at execution time.
+Status: PARTIALLY EXECUTED — Tweaks 2 & 3 shipped in 0.1.5. Tweak 1 (held-koan mode) remains to be implemented.
+
+## Implementation Status
+
+| Tweak | Status | Note |
+| 1 | pending | Held-koan mode + daily/held toggle; needs fresh session |
+| 2 | done (0.1.5) | `push_sender.py` now sends body-only payload with UTF-8 byte-safe truncate |
+| 3 | done (0.1.5) | `templates/index.html` and `mockup.html` updated: all commentary + verse collapsed by default |
+
+## Known Warnings / Next-Pass Items
+
+These are pre-existing or architectural items surfaced by diagnostics, not blockers for Tweaks 2 & 3. Resolve when Tweak 1 is implemented or in a dedicated cleanup pass:
+
+- CDN script tags lack `integrity` subresource-integrity attributes (`templates/index.html`, `mockup.html`). Per frontend ADR this is accepted under the zero-build CDN strategy, but add hashes if offline-first hardening becomes a goal.
+- `alert()` calls in template JS may be replaced with an in-page notification element for a calmer UX.
+- Console logging in `templates/index.html` SW registration and error blocks may be removed or gated in a future cleanup.
+
 
 Peer-reviewed (plan-review): `google/gemini-2.5-pro` + `openai/gpt-5`, both responded 2026-11-16. Findings folded in below; see Peer Review section.
 

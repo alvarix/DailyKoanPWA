@@ -49,11 +49,25 @@ def get_subscriptions():
     return rows
 
 
-def truncate(text, length=120):
-    """Truncate text with ellipsis."""
-    if len(text) <= length:
+def truncate_utf8_bytes(text, max_bytes=3000):
+    """Truncate text to fit within max_bytes UTF-8 bytes without splitting a codepoint.
+
+    Web Push payloads must stay under the client's encrypted-size budget. A plain
+    character count can overshoot because multi-byte codepoints and JSON escaping
+    both cost bytes. This function works on the UTF-8 byte representation and backs
+    up to the last complete codepoint before appending an ellipsis.
+    """
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
         return text
-    return text[:length].rsplit(" ", 1)[0] + "..."
+    # UTF-8 sequences are at most 4 bytes; back up at most 3 bytes from the cut.
+    for end in range(max_bytes, max(0, max_bytes - 4), -1):
+        try:
+            return encoded[:end].decode("utf-8") + "…"
+        except UnicodeDecodeError:
+            continue
+    # Should never reach here for valid UTF-8 input, but the fallback is safe.
+    return text[:max_bytes] + "…"
 
 
 def send_push(subscription, payload, vapid_private_key):
@@ -103,13 +117,14 @@ def main():
     vapid_private_key = VAPID_PRIVATE_PATH
 
     koan, idx, total = get_todays_koan()
-    title = f"Daily Koan: {koan['title']}"
-    body = truncate(koan["koan_text"])
+    body = truncate_utf8_bytes(koan["koan_text"])
     url = os.environ.get("BASE_URL", "https://your-domain.com/")
     koan_url = f"{url}koan/{idx}"
 
+    # Title is intentionally omitted; the service worker falls back to the app
+    # name, so the visible notification is just the koan body (plus the OS-mandated
+    # small title line on some platforms).
     payload = {
-        "title": title,
         "body": body,
         "icon": "/static/icon-192.png",
         "badge": "/static/badge-72.png",

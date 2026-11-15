@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.5] — Tweaks 2 & 3 (partial 002 execution)
+
+### Changed
+- `push_sender.py`: push notification payload now carries only the koan body, no title. The OS/app-name title line remains as a fallback handled by `static/sw.js`. Body truncated with a UTF-8 byte-safe guard (`~3000` bytes) instead of the previous 120-character cut.
+- `templates/index.html`: commentary 1 and the verse now start collapsed by default, matching commentary 2. All three use native `<details>/<summary>` for accessibility.
+- `mockup.html`: updated to reflect the new collapsed-by-default verse and commentary 1 so the UI can be previewed locally without starting the Flask server.
+
+### Added
+- `tests/test_push_sender.py`: unit tests for `truncate_utf8_bytes` covering short text, exact-limit text, long ASCII, multibyte boundary, and empty input cases.
+
+### Notes
+- Tweak 1 (held-koan mode + daily/held toggle, settings table, `/api/next`, `/api/mode`) remains specified in `docs/002--llm--TWEAKS.md` and is not implemented in this release.
+- No database migrations or configuration changes are required for this release.
+
 ## [0.1.0] — Phase 1: Daily Koan PWA
 
 ### Added
