@@ -42,6 +42,11 @@
 ### Notes
 - Let's Encrypt issues duckdns.org subdomains without issue; duckdns.org sits on the Public Suffix List, so each subdomain counts as its own registered domain for LE quotas
 
+## [0.1.4] — Architecture decision records
+
+### Added
+- docs/adr/ — five ADRs + index recording the *why* behind the shipped system: deployment.md (isolated droplet over Forge, DuckDNS domain, hard gates), data-model.md (SQLite schema, 404/410-only retention, settings table proposal, VAPID-as-irreplaceable-state), filesystem.md (alvar/koan users, /opt/dailykoan layout, generated-state-vs-git rules, dubious-ownership pulls), frontend.md (zero-build CDN stack, server-rendered + Alpine islands, details/summary, SW strategy), push-pipeline.md (timer as the only push mechanism, run-time state reads, retention tri-state, VAPID single-pair policy). Status markers distinguish Accepted (live) from Proposed (002 spec, not executed).
+
 ## [0.1.3] — Tweaks spec (not executed)
 
 ### Added

@@ -46,7 +46,8 @@ DailyKoanPWA/
     ├── 001.3--usr--standalone-droplet-checklist.md   # 001.2 execution checklist
     ├── 001.11--llm--MIGRATE_TO_FORGE.md             # standalone -> Forge, same-as-wmw, with rollback
     ├── 001.12--usr--migrate-to-forge-checklist.md    # 001.11 execution checklist
-    └── 001--*--spec/status files                 # specs, status, briefs
+    ├── 001--*--spec/status files                 # specs, status, briefs
+    └── adr/                                     # architecture decision records (why, not how)
 ```
 
 ## Deployment
