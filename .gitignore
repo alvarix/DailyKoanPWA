@@ -1,0 +1,13 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Secrets and state — never commit
+*.pem
+subscriptions.db
+
+# Tooling caches
+.hypa/
+.tmp/
+.DS_Store
