@@ -44,3 +44,6 @@
 
 ### Fixed
 - 001.2/001.3 sudo gate corrected: `ssh -t` + `sudo -v` (prompts alvar's own password) replaces `sudo -n`, which can never pass on stock Ubuntu (%sudo is passworded; NOPASSWD is not default)
+- 001.2 Phase 2 rewritten with a shell legend (LAPTOP# / ROOT# / ALVAR#), per-block Shell labels through Phase 9, when each shell can be closed, and plain-English briefs per step; 001.3 gates tagged with their shell
+- 001.2/001.11: all backslash line-continuations in shell blocks joined to single lines - multi-line pastes over SSH were dropping the continuation line (the 99-hardening.conf write silently became a no-op twice)
+- requirements.txt: py-vapid==1.9.2 (stale freeze pin) breaks with modern cryptography 50.x on the droplet (TypeError: curve must be an EllipticCurve instance, hit live on deploy); bumped to py-vapid==1.9.6 and pinned cryptography==50.0.2 - the local known-good pair; 001.2 Phase 3.3 documents the on-droplet fix and the stale-Step-4.4 ref corrected to Phase 3.3
