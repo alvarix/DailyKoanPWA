@@ -42,10 +42,10 @@ DailyKoanPWA/
 └── docs/
     ├── 001--llm--DEPLOYMENT.md                  # subdomain-on-an-existing-droplet guide
     ├── 001.1--llm--FORGE_DEPLOYMENT.md          # Forge deploy + Oct-24 nginx postmortem (mandatory reading)
-    ├── 002--llm--STANDALONE_DROPLET_DEPLOYMENT.md  # separate-droplet deploy (isolated failure domain)
-    ├── 002--usr--standalone-droplet-checklist.md   # 002 execution checklist
-    ├── 003--llm--MIGRATE_TO_FORGE.md            # standalone -> Forge, same-as-wmw, with rollback
-    ├── 003--usr--migrate-to-forge-checklist.md     # 003 execution checklist
+    ├── 001.2--llm--STANDALONE_DROPLET_DEPLOYMENT.md  # separate-droplet deploy (isolated failure domain)
+    ├── 001.3--usr--standalone-droplet-checklist.md   # 001.2 execution checklist
+    ├── 001.11--llm--MIGRATE_TO_FORGE.md             # standalone -> Forge, same-as-wmw, with rollback
+    ├── 001.12--usr--migrate-to-forge-checklist.md    # 001.11 execution checklist
     └── 001--*--spec/status files                 # specs, status, briefs
 ```
 
@@ -53,8 +53,8 @@ DailyKoanPWA/
 
 Three runbooks, in execution order:
 
-1. [docs/002--llm--STANDALONE_DROPLET_DEPLOYMENT.md](docs/002--llm--STANDALONE_DROPLET_DEPLOYMENT.md) — deploy on a fresh, isolated DigitalOcean droplet (recommended path; a mistake cannot touch the Forge droplet or its client sites). Execution checklist: docs/002--usr--standalone-droplet-checklist.md
-2. [docs/003--llm--MIGRATE_TO_FORGE.md](docs/003--llm--MIGRATE_TO_FORGE.md) — later, once stable: switch the standalone droplet to the Forge-managed droplet, configured the same way as wmw. Execution checklist: docs/003--usr--migrate-to-forge-checklist.md
+1. [docs/001.2--llm--STANDALONE_DROPLET_DEPLOYMENT.md](docs/001.2--llm--STANDALONE_DROPLET_DEPLOYMENT.md) — deploy on a fresh, isolated DigitalOcean droplet (recommended path; a mistake cannot touch the Forge droplet or its client sites). Execution checklist: docs/001.3--usr--standalone-droplet-checklist.md
+2. [docs/001.11--llm--MIGRATE_TO_FORGE.md](docs/001.11--llm--MIGRATE_TO_FORGE.md) — later, once stable: switch the standalone droplet to the Forge-managed droplet, configured the same way as wmw. Execution checklist: docs/001.12--usr--migrate-to-forge-checklist.md
 3. [docs/001.1--llm--FORGE_DEPLOYMENT.md](docs/001.1--llm--FORGE_DEPLOYMENT.md) — the 2026-10-24 nginx postmortem; its Section B safety rules are mandatory reading before any Forge nginx edit
 
 ## Requirements
