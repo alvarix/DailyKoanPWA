@@ -42,6 +42,11 @@
 ### Notes
 - Let's Encrypt issues duckdns.org subdomains without issue; duckdns.org sits on the Public Suffix List, so each subdomain counts as its own registered domain for LE quotas
 
+## [0.1.3] — Tweaks spec (not executed)
+
+### Added
+- docs/002--llm--TWEAKS.md — spec for three tweaks: (1) held-koan mode with global server-side pointer + toggle back to daily rotation, (2) push alert carrying only the koan body, (3) commentary and verse hidden by default. Peer-reviewed (gemini-2.5-pro + gpt-5, 2/2 responded); high/medium findings folded in (atomic index advance, timer as single push mechanism, idempotent migration). Deliberately not executed — Alvar lives with the app first; implementation in a fresh session. Open decisions listed in the doc.
+
 ### Fixed
 - 001.2/001.3 sudo gate corrected: `ssh -t` + `sudo -v` (prompts alvar's own password) replaces `sudo -n`, which can never pass on stock Ubuntu (%sudo is passworded; NOPASSWD is not default)
 - 001.2 Phase 2 rewritten with a shell legend (LAPTOP# / ROOT# / ALVAR#), per-block Shell labels through Phase 9, when each shell can be closed, and plain-English briefs per step; 001.3 gates tagged with their shell
