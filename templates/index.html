@@ -8,10 +8,30 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Daily Koan</title>
 
+  <script>
+    // Theme bootstrap: runs before first paint so the saved/system theme
+    // never flashes the wrong way (002). Preference lives in localStorage
+    // ('dk-theme': 'light' | 'dark' | absent = follow system).
+    (function () {
+      var dark = false;
+      try {
+        var pref = localStorage.getItem('dk-theme');
+        dark = pref === 'dark' ||
+          (!pref && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      } catch (e) { /* localStorage unavailable: stay light */ }
+      if (dark) {
+        document.documentElement.classList.add('dark');
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', '#1a1714');
+      }
+    })();
+  </script>
+
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           colors: {
@@ -50,65 +70,86 @@
 
   <style>
     html { background-color: #faf9f6; }
+    html.dark { background-color: #1a1714; }
     body { -webkit-tap-highlight-color: transparent; }
     .koan-body { text-wrap: pretty; }
   </style>
 </head>
-<body class="bg-paper-50 text-ink-950 font-sans min-h-screen antialiased"
+<body class="bg-paper-50 dark:bg-[#1a1714] text-ink-950 dark:text-[#ece7e0] font-sans min-h-screen antialiased"
       x-data="koanApp()"
       x-init="init()">
 
-  <!-- Floating bell -->
-  <button @click="toggleNotifications()"
-          class="fixed top-5 right-5 z-50 flex items-center justify-center w-10 h-10 rounded-full bg-paper-100 hover:bg-paper-200 text-ink-800 transition-colors shadow-sm border border-paper-200"
-          :class="{ 'text-gold-500 border-gold-400/40 bg-gold-50': subscribed }"
-          aria-label="Enable notifications">
-    <svg x-show="!subscribed" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-3.313 3.022 23.848 23.848 0 005.454 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0v3.75a2.143 2.143 0 01-2.143 2.143H8.143A2.143 2.143 0 016 20.732v-3.75m9.714 0h-9.714"/>
-    </svg>
-    <svg x-show="subscribed" class="w-[18px] h-[18px]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-  </button>
+  <!-- Floating controls: settings + notifications -->
+  <div class="fixed top-5 right-5 z-40 flex items-center gap-2">
+    <button @click="settingsOpen = true"
+            class="flex items-center justify-center w-10 h-10 rounded-full bg-paper-100 dark:bg-[#241f1c] hover:bg-paper-200 dark:hover:bg-[#2c2724] text-ink-800 dark:text-[#cfc7be] transition-colors shadow-sm border border-paper-200 dark:border-[#38312d]"
+            aria-label="Open settings">
+      <svg class="w-[17px] h-[17px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+    <button @click="toggleNotifications()"
+            class="flex items-center justify-center w-10 h-10 rounded-full bg-paper-100 dark:bg-[#241f1c] hover:bg-paper-200 dark:hover:bg-[#2c2724] text-ink-800 dark:text-[#cfc7be] transition-colors shadow-sm border border-paper-200 dark:border-[#38312d]"
+            :class="{ 'text-gold-500 dark:text-[#dca44a] border-gold-400/40': subscribed }"
+            aria-label="Toggle notifications">
+      <svg x-show="!subscribed" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+      <svg x-show="subscribed" class="w-[18px] h-[18px]" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+    </button>
+  </div>
 
   <main class="max-w-[640px] mx-auto px-7 sm:px-10 pt-20 pb-28">
 
+    <!-- Header: 18px site name, 16px attribution right-justified -->
+    <header class="mb-12 flex items-baseline justify-between">
+      <h1 class="text-[18px] font-semibold tracking-tight text-ink-950 dark:text-[#ece7e0]">Daily Koan</h1>
+      <h2 class="text-base font-normal text-ink-600 dark:text-[#a89f96]">an alfApp</h2>
+    </header>
+
     <!-- Date / context -->
-    <div class="mb-10 flex items-center gap-3 text-xs tracking-widest uppercase text-ink-600">
+    <div class="mb-10 flex items-center gap-3 text-xs tracking-widest uppercase text-ink-600 dark:text-[#a89f96]">
       <span x-text="today"></span>
-      <span class="w-1 h-1 rounded-full bg-ink-600/40"></span>
+      <span class="w-1 h-1 rounded-full bg-ink-600/40 dark:bg-[#a89f96]/40"></span>
       <span>{{ koan.source_publication }}</span>
     </div>
 
     <!-- Title -->
-    <h1 class="text-2xl sm:text-[28px] font-sans font-semibold tracking-tight leading-snug text-ink-950 mb-8">
+    <h2 class="text-2xl sm:text-[28px] font-sans font-semibold tracking-tight leading-snug text-ink-950 dark:text-[#ece7e0] mb-8">
       {{ koan.title }}
-    </h1>
+    </h2>
 
     <!-- Koan body -->
-    <blockquote class="text-[19px] sm:text-[21px] leading-prose font-serif text-ink-950 koan-body mb-14">
+    <blockquote class="text-[19px] sm:text-[21px] leading-prose font-serif text-ink-950 dark:text-[#ece7e0] koan-body mb-14">
       {{ koan.koan_text }}
     </blockquote>
 
     <!-- Meta -->
-    <div class="flex items-center gap-2 text-[13px] text-ink-600 mb-14">
+    <div class="flex items-center gap-2 text-[13px] text-ink-600 dark:text-[#a89f96] mb-14">
       <span>{{ koan.source_author }}</span>
-      <span class="text-paper-200">·</span>
+      <span class="text-paper-200 dark:text-[#38312d]">·</span>
       <span>{{ koan.place_of_koan }}</span>
-      <span class="text-paper-200">·</span>
+      <span class="text-paper-200 dark:text-[#38312d]">·</span>
       <span>{{ koan.date_of_koan }}</span>
     </div>
 
-    <!-- Commentaries -->
+    <!-- Commentaries (all collapsed by default, 002 tweak 3) -->
     <div class="space-y-6 mb-6">
       <details class="group">
         <summary class="cursor-pointer list-none">
-          <div class="flex items-center gap-2 mb-3 text-[13px] tracking-wide uppercase text-ink-600 select-none">
+          <div class="flex items-center gap-2 mb-3 text-[13px] tracking-wide uppercase text-ink-600 dark:text-[#a89f96] select-none">
             <span class="inline-block w-[14px] transition-transform group-open:rotate-90 duration-200">
               <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </span>
             <span>Commentary by {{ koan.commentary_author }}</span>
           </div>
         </summary>
-        <p class="text-base leading-prose text-ink-800 font-serif mb-6">
+        <p class="text-base leading-prose text-ink-800 dark:text-[#cfc7be] font-serif mb-6">
           {{ koan.commentary }}
         </p>
       </details>
@@ -116,59 +157,175 @@
       {% if koan.commentary_2 %}
       <details class="group">
         <summary class="cursor-pointer list-none">
-          <div class="flex items-center gap-2 mb-3 text-[13px] tracking-wide uppercase text-ink-600 select-none">
+          <div class="flex items-center gap-2 mb-3 text-[13px] tracking-wide uppercase text-ink-600 dark:text-[#a89f96] select-none">
             <span class="inline-block w-[14px] transition-transform group-open:rotate-90 duration-200">
               <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
             </span>
             <span>Commentary by {{ koan.commentary_2_author }}</span>
           </div>
         </summary>
-        <p class="text-base leading-prose text-ink-800 font-serif mb-6">
+        <p class="text-base leading-prose text-ink-800 dark:text-[#cfc7be] font-serif mb-6">
           {{ koan.commentary_2 }}
         </p>
       </details>
       {% endif %}
     </div>
 
-    <!-- Verse -->
+    <!-- Verse (collapsed, same pattern as commentary, 002 tweak 3) -->
     {% if koan.verse %}
-    <details class="group mt-10 pt-8 border-t border-paper-200">
+    <details class="group mt-10 pt-8 border-t border-paper-200 dark:border-[#38312d]">
       <summary class="cursor-pointer list-none">
-        <div class="flex items-center gap-2 mb-4 text-[13px] tracking-wide uppercase text-ink-600 select-none">
+        <div class="flex items-center gap-2 mb-4 text-[13px] tracking-wide uppercase text-ink-600 dark:text-[#a89f96] select-none">
           <span class="inline-block w-[14px] transition-transform group-open:rotate-90 duration-200">
             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </span>
           <span>Verse by {{ koan.verse_author }}</span>
         </div>
       </summary>
-      <p class="text-[17px] leading-prose text-ink-800 font-serif whitespace-pre-line">{{ koan.verse }}</p>
+      <p class="text-[17px] leading-prose text-ink-800 dark:text-[#cfc7be] font-serif whitespace-pre-line">{{ koan.verse }}</p>
     </details>
     {% endif %}
 
-    <!-- Next button -->
-    <div class="mt-14 flex justify-center">
+    <!-- Koan controls -->
+    <div class="mt-14 flex items-center justify-center gap-3">
+      {% if mode == 'held' %}
+      <!-- Held mode: Next advances the global pointer for everyone (002 tweak 1) -->
+      <button @click="nextKoan()"
+              class="flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-ink-600 dark:text-[#a89f96] bg-paper-100 dark:bg-[#241f1c] hover:bg-paper-200 dark:hover:bg-[#2c2724] border border-paper-200 dark:border-[#38312d] rounded-full transition-colors">
+        Next Koan
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+      {% else %}
+      <!-- Daily mode: per-visitor browsing, unchanged from the original behavior -->
       <a href="/koan/{{ (koan_index + 1) % total_koans }}"
-         class="flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-ink-600 bg-paper-100 hover:bg-paper-200 border border-paper-200 rounded-full transition-colors">
+         class="flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-ink-600 dark:text-[#a89f96] bg-paper-100 dark:bg-[#241f1c] hover:bg-paper-200 dark:hover:bg-[#2c2724] border border-paper-200 dark:border-[#38312d] rounded-full transition-colors">
         Next Koan
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </a>
+      {% endif %}
+      <button @click="randomKoan()"
+              class="flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-ink-600 dark:text-[#a89f96] bg-paper-100 dark:bg-[#241f1c] hover:bg-paper-200 dark:hover:bg-[#2c2724] border border-paper-200 dark:border-[#38312d] rounded-full transition-colors">
+        Random Koan
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/>
+          <path d="m18 2 4 4-4 4"/>
+          <path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/>
+          <path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/>
+          <path d="m18 14 4 4-4 4"/>
+        </svg>
+      </button>
     </div>
 
+    {% if not viewing_current %}
+    <!-- Deep-linked view: offer the way back to what everyone sees -->
+    <div class="mt-8 flex justify-center">
+      <a href="/"
+         class="text-sm text-ink-600 dark:text-[#a89f96] underline decoration-paper-200 dark:decoration-[#38312d] underline-offset-4 hover:text-ink-800 dark:hover:text-[#cfc7be] transition-colors">
+        Return to the current koan
+      </a>
+    </div>
+    {% endif %}
+
   </main>
+
+  <!-- Settings drawer -->
+  <div x-show="settingsOpen" x-transition.opacity.duration.200ms
+       class="fixed inset-0 z-40 bg-ink-950/40 backdrop-blur-sm"
+       @click="settingsOpen = false"
+       aria-hidden="true"></div>
+
+  <section x-show="settingsOpen"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="translate-x-full"
+           x-transition:enter-end="translate-x-0"
+           x-transition:leave="transition ease-in duration-150"
+           x-transition:leave-start="translate-x-0"
+           x-transition:leave-end="translate-x-full"
+           class="fixed top-0 right-0 z-50 h-full w-[85%] max-w-xs bg-paper-50 dark:bg-[#211d19] border-l border-paper-200 dark:border-[#38312d] shadow-2xl overflow-y-auto"
+           role="dialog" aria-label="Settings">
+    <div class="p-7">
+      <div class="flex items-center justify-between mb-9">
+        <h3 class="text-lg font-semibold text-ink-950 dark:text-[#ece7e0]">Settings</h3>
+        <button @click="settingsOpen = false"
+                class="w-9 h-9 flex items-center justify-center rounded-full text-ink-600 dark:text-[#a89f96] hover:bg-paper-100 dark:hover:bg-[#241f1c] transition-colors"
+                aria-label="Close settings">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Koan mode -->
+      <p class="text-xs tracking-widest uppercase text-ink-600 dark:text-[#a89f96] mb-3">Koan mode</p>
+      <div class="flex gap-2 mb-2">
+        <button @click="setMode('held')"
+                :class="settings.mode === 'held' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
+                class="flex-1 px-4 py-2 rounded-full text-sm font-medium border transition-colors">Hold</button>
+        <button @click="setMode('daily')"
+                :class="settings.mode === 'daily' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
+                class="flex-1 px-4 py-2 rounded-full text-sm font-medium border transition-colors">Daily</button>
+      </div>
+      <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-9">
+        Hold keeps one koan for everyone until Next is pressed. Daily rotates to a new koan each day.
+      </p>
+
+      <!-- Koan order -->
+      <p class="text-xs tracking-widest uppercase text-ink-600 dark:text-[#a89f96] mb-3">Koan order</p>
+      <div class="flex gap-2 mb-2">
+        <button @click="setProgression('ordered')"
+                :class="settings.progression === 'ordered' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
+                class="flex-1 px-4 py-2 rounded-full text-sm font-medium border transition-colors">In order</button>
+        <button @click="setProgression('random')"
+                :class="settings.progression === 'random' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
+                class="flex-1 px-4 py-2 rounded-full text-sm font-medium border transition-colors">Random</button>
+      </div>
+      <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-9">
+        In order walks the classic collections case by case. Random jumps somewhere new each Next.
+      </p>
+
+      <!-- Push time -->
+      <p class="text-xs tracking-widest uppercase text-ink-600 dark:text-[#a89f96] mb-3">Daily push time</p>
+      <div class="flex items-center gap-2 mb-2">
+        <input id="push-time-input" type="time" value="{{ push_time }}"
+               class="bg-paper-100 dark:bg-[#241f1c] border border-paper-200 dark:border-[#38312d] rounded-xl px-3 py-2 text-sm text-ink-950 dark:text-[#ece7e0]">
+        <button @click="savePushTime()"
+                class="px-4 py-2 rounded-full text-sm font-medium bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724] transition-colors">Save</button>
+      </div>
+      <p x-show="pushSaved" x-transition class="text-xs text-gold-500 dark:text-[#dca44a] mb-2">Saved.</p>
+      <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-9">
+        Recorded as the preferred delivery time. The server timer currently fires at 08:00 UTC — moving it is an ops step (deployment runbook).
+      </p>
+
+      <!-- Night mode -->
+      <p class="text-xs tracking-widest uppercase text-ink-600 dark:text-[#a89f96] mb-3">Night mode</p>
+      <div class="flex gap-2 mb-2">
+        <button @click="setTheme('system')"
+                :class="theme === 'system' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
+                class="flex-1 px-4 py-2 rounded-full text-sm font-medium border transition-colors">System</button>
+        <button @click="setTheme('light')"
+                :class="theme === 'light' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
+                class="flex-1 px-4 py-2 rounded-full text-sm font-medium border transition-colors">Light</button>
+        <button @click="setTheme('dark')"
+                :class="theme === 'dark' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
+                class="flex-1 px-4 py-2 rounded-full text-sm font-medium border transition-colors">Dark</button>
+      </div>
+      <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-6">
+        Saved on this device. System follows your appearance setting.
+      </p>
+    </div>
+  </section>
 
   <!-- iOS help modal -->
   <div x-show="iosHelpVisible" x-transition
        class="fixed inset-0 bg-ink-950/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-6"
        @click.away="iosHelpVisible = false">
-    <div class="bg-paper-50 rounded-2xl max-w-sm w-full p-6 shadow-2xl">
-      <h3 class="text-lg font-semibold text-ink-950 mb-4">Enable Daily Koan Notifications</h3>
-      <ol class="list-decimal list-inside space-y-2.5 text-sm text-ink-800 mb-8">
-        <li>Tap <strong class="text-ink-950">Share</strong> in Safari.</li>
-        <li>Choose <strong class="text-ink-950">Add to Home Screen</strong>.</li>
+    <div class="bg-paper-50 dark:bg-[#211d19] rounded-2xl max-w-sm w-full p-6 shadow-2xl">
+      <h3 class="text-lg font-semibold text-ink-950 dark:text-[#ece7e0] mb-4">Enable Daily Koan Notifications</h3>
+      <ol class="list-decimal list-inside space-y-2.5 text-sm text-ink-800 dark:text-[#cfc7be] mb-8">
+        <li>Tap <strong class="text-ink-950 dark:text-[#ece7e0]">Share</strong> in Safari.</li>
+        <li>Choose <strong class="text-ink-950 dark:text-[#ece7e0]">Add to Home Screen</strong>.</li>
         <li>Open the app from your Home Screen.</li>
         <li>Tap the bell and allow notifications.</li>
       </ol>
-      <button @click="iosHelpVisible = false" class="w-full py-2.5 bg-paper-200 hover:bg-paper-200/80 text-ink-950 font-semibold text-sm rounded-xl transition-colors">
+      <button @click="iosHelpVisible = false" class="w-full py-2.5 bg-paper-200 dark:bg-[#2c2724] hover:bg-paper-200/80 text-ink-950 dark:text-[#ece7e0] font-semibold text-sm rounded-xl transition-colors">
         Got it
       </button>
     </div>
@@ -179,12 +336,121 @@
       return {
         subscribed: false,
         iosHelpVisible: false,
+        settingsOpen: false,
+        pushSaved: false,
+        theme: 'system',
         vapidPublicKey: '{{ vapid_public_key }}',
+        // Server-rendered global settings (docs/002): mode + progression are
+        // global by design — one koan for everyone, single operator.
+        settings: {
+          mode: '{{ mode }}',
+          progression: '{{ progression }}',
+        },
         today: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
 
         async init() {
+          this.theme = this.storedTheme();
+          this.applyTheme();
+          // Live-follow the system theme while in System mode.
+          if (window.matchMedia) {
+            const mq = window.matchMedia('(prefers-color-scheme: dark)');
+            const onChange = () => { if (this.theme === 'system') this.applyTheme(); };
+            if (mq.addEventListener) mq.addEventListener('change', onChange);
+            else if (mq.addListener) mq.addListener(onChange);
+          }
           this.checkSubscription();
         },
+
+        // --- Theme (per-device, localStorage 'dk-theme') ---
+
+        storedTheme() {
+          try { return localStorage.getItem('dk-theme') || 'system'; }
+          catch (e) { return 'system'; }
+        },
+
+        setTheme(choice) {
+          try {
+            if (choice === 'system') localStorage.removeItem('dk-theme');
+            else localStorage.setItem('dk-theme', choice);
+          } catch (e) { /* private mode: theme won't persist, still applies */ }
+          this.theme = choice;
+          this.applyTheme();
+        },
+
+        applyTheme() {
+          const dark = this.theme === 'dark' ||
+            (this.theme === 'system' && window.matchMedia &&
+             window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+          const meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? '#1a1714' : '#faf9f6');
+        },
+
+        // --- Global settings (server state, docs/002) ---
+
+        async setMode(mode) {
+          try {
+            const res = await fetch('/api/mode', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mode })
+            });
+            if (res.ok) window.location.reload();
+            else console.error('Mode change failed:', res.status);
+          } catch (e) { console.error('Mode change error:', e); }
+        },
+
+        async setProgression(value) {
+          try {
+            const res = await fetch('/api/settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ progression: value })
+            });
+            if (res.ok) window.location.reload();
+            else console.error('Order change failed:', res.status);
+          } catch (e) { console.error('Order change error:', e); }
+        },
+
+        async savePushTime() {
+          const input = document.getElementById('push-time-input');
+          if (!input || !input.value) return;
+          try {
+            const res = await fetch('/api/settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ push_time: input.value })
+            });
+            this.pushSaved = res.ok;
+            if (this.pushSaved) setTimeout(() => this.pushSaved = false, 2500);
+          } catch (e) { console.error('Save push time error:', e); }
+        },
+
+        // --- Koan navigation ---
+
+        async nextKoan() {
+          // Held mode: advance the global pointer, then re-render.
+          try {
+            const res = await fetch('/api/next', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: '{}'
+            });
+            if (res.ok) { window.location.assign('/'); return; }
+            if (res.status === 409) { window.location.reload(); return; }
+            console.error('Next koan failed:', res.status);
+          } catch (e) { console.error('Next koan error:', e); }
+        },
+
+        randomKoan() {
+          const total = {{ total_koans }};
+          const current = {{ koan_index }};
+          let pick = current;
+          while (pick === current && total > 1) pick = Math.floor(Math.random() * total);
+          window.location.assign('/koan/' + pick);
+        },
+
+        // --- Notifications (unchanged behavior, 002) ---
 
         isIOS() {
           return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;

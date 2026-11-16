@@ -3,7 +3,7 @@
  * Handles push notifications and basic caching.
  */
 
-const CACHE_NAME = 'daily-koan-v1';
+const CACHE_NAME = 'daily-koan-v2'; // bumped from v1: 002 UI (header/drawer/night mode)
 const urlsToCache = [
   '/',
   '/static/manifest.json'
