@@ -1,6 +1,6 @@
 {
   "name": "Daily Koan",
-  "short_name": "Koan",
+  "short_name": "Daily Koan",
   "description": "A daily Zen koan delivered to your device.",
   "start_url": "/",
   "display": "standalone",
