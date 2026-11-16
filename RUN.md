@@ -20,11 +20,17 @@ The dev server auto-reloads when you edit files.
 ## What Works Locally
 
 | Feature | Local (http://127.0.0.1:5000) | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Browse koans | ✅ Yes | All pages and navigation work |
-| Toggle commentaries | ✅ Yes | Collapsible details panels |
-| "Next Koan" button | ✅ Yes | Rotates through all 14 koans |
-| API endpoints | ✅ Yes | `/api/today`, `/api/koan/N` testable |
+| Toggle commentaries / verse | ✅ Yes | Collapsible details panels (collapsed by default) |
+| Next Koan (held mode) | ✅ Yes | Advances the global pointer server-side (409 in daily mode) |
+| Random Koan / deep links | ✅ Yes | Per-visitor views — never move the global pointer |
+| Settings drawer | ✅ Yes | Hold/Daily, In order/Random, push time, night mode (per device) |
+| API endpoints | ✅ Yes | `/api/today`, `/api/settings`, `/api/mode`, `/api/next`, `/api/koan/N` |
+| Unit tests | ✅ Yes | `venv/bin/python -m unittest discover -s tests` (43 tests) |
+
+First app start (or `init_db.py`) auto-creates the `settings` table and seeds defaults
+(`mode='held'`, `progression='ordered'`, `push_time='08:00'`). No manual migration step.
 
 ## What Does NOT Work Locally
 

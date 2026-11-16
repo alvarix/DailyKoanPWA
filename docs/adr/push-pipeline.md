@@ -1,6 +1,6 @@
 # ADR: Push Pipeline
 
-Status: Accepted (timer mechanism, retention policy) / Proposed (held-mode logic — 002 spec)
+Status: Accepted (timer mechanism, retention policy, held-mode logic — executed 0.1.6)
 Date: 2026-11-16
 Related: docs/adr/data-model.md, docs/002--llm--TWEAKS.md, docs/001.2--llm--STANDALONE_DROPLET_DEPLOYMENT.md
 
@@ -18,14 +18,16 @@ fires `dailykoan-push.service` (oneshot), which runs `push_sender.py` as `koan`.
 `POST /api/next` "so subscribers learn immediately". Both plan-reviewers flagged it, and it is right to
 reject on architecture grounds, not scale: a request handler must return fast, but a broadcast is
 unbounded latency (per-subscriber network calls) with partial-failure semantics the request cannot
-express. The timer *is* the decoupling. Consequence: in held mode (proposed), a Next-koan tap at 14:00
-pushes at next 08:00 — for a personal app whose only subscriber is the tapper, correct behavior (002
-records this as an open decision, default accept).
+express. The timer *is* the decoupling. Consequence (live since 0.1.6): in held mode, a Next-koan tap
+at 14:00 pushes at next 08:00 — for a personal app whose only subscriber is the tapper, correct behavior
+(002's open decision resolved to accept; the escape hatch is a systemd path/`systemd-run` trigger,
+deliberately not built).
 
 **push_sender.py reads state at run time — no memory, no arguments.** Mode, current index, dedupe keys
-all come from the `settings` table when the run starts (proposed; today it reads koans + subscriptions
-fresh each run). Every run decides fresh: daily mode → deterministic koan, dedupe on `last_push_date`;
-held mode → `current_index` when `last_push_index` differs, else exit quietly.
+all come from the `settings` table when the run starts, via `koan_selector.select_push` (executed 0.1.6).
+Every run decides fresh: daily mode → deterministic koan, dedupe on `last_push_date` (protects against
+`Persistent=true` catch-up double-runs); held mode → `current_index` when `last_push_index` differs, else
+quiet exit with a journaled reason ("nothing new, 0 sent").
 
 **Retention policy — the night's hardest lesson.** Only a confirmed 404/410 from the endpoint may delete
 a subscription. The original code treated *any* send failure as dead-subscription and deleted the row:
@@ -41,10 +43,9 @@ requires `systemctl restart dailykoan` plus re-subscribe of every device (drift 
 hit live). Rotation is an event, never casual. Claims: real contact (`mailto:alvarix@gmail.com`), not
 a reserved `.example` TLD.
 
-**Payload:** title + truncated body (120 chars) today; 002 (proposed) drops the title and keeps a
-byte-safe body truncate (~3000 bytes post-encryption budget). The SW's fallbacks
-(`data.title || 'Daily Koan'`) stay — empty title is expected to render the app name as the system
-title line on iOS.
+**Payload (accepted since 0.1.5):** no title — the SW's `data.title || 'Daily Koan'` fallback surfaces the
+app name as the OS title line — body is the koan text with a byte-safe truncate (~3000 bytes
+post-encryption budget).
 
 **Delivery verification:** the journal is the log (`Done. Sent: N, Removed dead: N, Failed (kept): N`);
 nginx access log proves subscribe POSTs (gunicorn's journal does not log successful requests — another

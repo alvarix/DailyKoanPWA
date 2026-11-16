@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.6] — 002 Tweak 1: held-koan mode + settings drawer
+
+### Added
+- `koans.json`: per-koan `group` (text), `order` (case number), `id` (stable slug); `koans.json` file order is no longer load-bearing.
+- `settings` table (key/value) in `subscriptions.db`: `mode` (`held` | `daily`), `current_index`, `last_push_date`, `last_push_index`, `progression` (`ordered` | `random`), `push_time`. Idempotent `ensure_settings` migration; `current_index` seeds from today's deterministic index on first run.
+- `koan_selector.py`: shared koan-selection + settings module (both processes import it — no drift). `daily_index`, `current_index` (bounds-clamped), `advance` (atomic, `BEGIN IMMEDIATE`), `set_values`, `select_push` + `mark_pushed` (mode-aware dedupe).
+- `POST /api/next`: atomic pointer advance; **409 in daily mode**.
+- `POST /api/mode`: explicit `held`/`daily`; clears dedupe keys so the new mode pushes fresh.
+- `GET/POST /api/settings`: `push_time` (validated `HH:MM`) and `progression`; `mode` readable here too.
+- `GET /koan/<index>`: deep links — per-visitor views that never move the global pointer.
+- Same-origin guard on state-changing routes (Origin/Referer host check) — trivial CSRF defense, no auth to lean on.
+- `templates/index.html`: header (site name + attribution), settings drawer (mode, order, push time, night mode), Random Koan button, pre-paint theme bootstrap (`dk-theme` in localStorage; system default), Tailwind `darkMode: 'class'`.
+- `tests/test_koan_selector.py` + `tests/test_app.py`: 43 tests total (migration idempotency, daily/held selection, atomic advance, mode-switch dedupe clearing, push dedupe both modes, route behavior, deep-link immutability, CSRF guard).
+
+### Changed
+- `push_sender.py`: decides from `settings` at run time — daily dedupes on `last_push_date`, held on `last_push_index`; quiet exit (with journal reason) when nothing is new.
+- `init_db.py`: also runs `ensure_settings`.
+- `static/sw.js`: `CACHE_NAME` bumped to `daily-koan-v2`.
+- `pyproject.toml`: ruff target `py39` (venv runs 3.9.6); `datetime.UTC` → `time.strftime(time.gmtime())` for the same compatibility reason.
+
+### Notes
+- Migration is additive and automatic on next `git pull && systemctl restart dailykoan`; no manual DB step. Suggested `sqlite3 subscriptions.db ".backup subscriptions.db.bak"` before the deploy as routine care.
+- `mockup.html` is stale relative to 0.1.6 (header, drawer, Random button, theme bootstrap); it remains the 0.1.5 design reference. Template is the source of truth.
+- Analysis follow-up (gates/levels, corpus fill-out, componentization verdict): `docs/003--llm--KOAN_PROGRESSION.md`.
+
 ## [0.1.5] — Tweaks 2 & 3 (partial 002 execution)
 
 ### Changed

@@ -1,12 +1,12 @@
 # Daily Koan PWA — Tweaks Spec (Doc 002)
 
 Version: 002 — llm
-Status: PARTIALLY EXECUTED — Tweaks 2 & 3 shipped in 0.1.5. Tweak 1 (held-koan mode) remains to be implemented.
+Status: EXECUTED — all three tweaks shipped. Tweaks 2 & 3 in 0.1.5; Tweak 1 (held-koan mode, settings drawer, night mode) in 0.1.6. Follow-on analysis (gates, corpus fill-out): docs/003--llm--KOAN_PROGRESSION.md.
 
 ## Implementation Status
 
 | Tweak | Status | Note |
-| 1 | pending | Held-koan mode + daily/held toggle; needs fresh session |
+| 1 | done (0.1.6) | Held-koan mode + Hold/Daily toggle + settings drawer + night mode (system default) + Random/In-order progression |
 | 2 | done (0.1.5) | `push_sender.py` now sends body-only payload with UTF-8 byte-safe truncate |
 | 3 | done (0.1.5) | `templates/index.html` and `mockup.html` updated: all commentary + verse collapsed by default |
 
@@ -171,6 +171,25 @@ Template-only change — no backend, no DB, no push impact:
 2. Timer-latency on held-mode advance (next 08:00) — acceptable? (Recommended: yes, revisit if a second subscriber appears.)
 3. Bare-alert title line = app name (the OS floor) — confirmed acceptable?
 4. Verse hidden by default — confirmed (recorded above as deliberate product change)?
+
+## Decision Answers (chosen defaults, 0.1.6)
+
+| # | Question | Chosen | Rationale |
+| 1 | Default mode | `held` | The spec leans held; the toggle is one tap away in the drawer. Flip in `POST /api/settings {"mode":"daily"}` or the drawer |
+| 2 | Timer-latency | accept | Only subscriber is the tapper; escape hatch (systemd path) documented, not built |
+| 3 | Bare-alert title | accept | OS floor; payload omits title, SW falls back to the app name |
+| 4 | Verse hidden | accept | Shipped in 0.1.5 as the deliberate product change |
+
+## Deviations from spec (all reviewed)
+
+| Spec said | Shipped | Why |
+| `mode='daily'` seeded default | `mode='held'` seeded default | Open decision #1 resolved to held (spec leans held, drawer toggle is one tap) |
+| Migration in `app.py` | `koan_selector.py` shared module | 002 itself says "imported by push_sender.py — same code path, no drift"; a module is the honest shape of that. Also the 003 componentization answer |
+| `PRAGMA user_version` bump | plain `CREATE TABLE IF NOT EXISTS` + `INSERT OR IGNORE` | user_version adds a second source of truth for a schema that is already idempotent; WAL + busy_timeout + BEGIN IMMEDIATE cover the races the bump was meant to gate |
+| `/api/mode` toggles | explicit set, separate route kept | Shipped as specified (explicit `held`/`daily` values, 400 otherwise) |
+| post-`/api/next` DOM update | `window.location.reload()` | One worker, one real subscriber: a reload is simpler and always coherent; Alpine state diffing is a future nicety |
+| `daily` Next = per-visitor `<a>` link | `POST /api/next` 409s in daily; the link stays | Kept the spec's behavior — per-visitor navigation in daily mode; the 409 documents the boundary |
+| push time control "affects delivery" | drawer records the preference; delivery stays `OnCalendar 08:00` | Honest UI: moving the timer is an ops step (edit unit, daemon-reload), not a settings row. Spec reviewers flagged the lying-UI risk |
 
 ## For Dummies (Plain English)
 

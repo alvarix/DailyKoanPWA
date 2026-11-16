@@ -4,9 +4,11 @@ A minimal, Zen-inspired progressive web app that delivers a different koan every
 
 ## Features
 
-- **Daily Koan**: Deterministically selected every day so all subscribers see the same teaching
-- **Push Notifications**: iOS Safari 16.4+ and modern browsers via Web Push API
-- **Full Koan Page**: Title, source, dual commentary, and verse — all served in a calm, readable dark theme
+- **Held or Daily koan**: Hold mode serves everyone the same koan until someone taps Next; Daily mode rotates deterministically by date. One tap in the settings drawer flips it
+- **Ordered progression**: koans walk the classic texts (Mumonkan → Blue Cliff Record → others) case by case; a Random mode jumps instead
+- **Push Notifications**: iOS Safari 16.4+ and modern browsers via Web Push API; the alert carries the koan body itself
+- **Full Koan Page**: Title, source, dual commentary, and verse — collapsed by default, calm to open
+- **Night Mode**: follows your system appearance by default; System/Light/Dark per device in the drawer
 - **Offline-First**: Add to Home Screen; works offline via service worker
 - **Modern Stack, Zero Build Step**: Tailwind, Alpine.js, and HTMX served from CDN; no npm build required
 - **Self-Hostable**: < $6/mo on a DigitalOcean droplet
@@ -18,37 +20,43 @@ A minimal, Zen-inspired progressive web app that delivers a different koan every
 3. Install deps: `pip install -r requirements.txt`
 4. Generate icons: `python3 init_icons.py`
 5. Generate VAPID keys: `python3 init_vapid.py`
-6. Initialize the database: `python3 init_db.py`
+6. Initialize the database: `python3 init_db.py` (also seeds the `settings` table)
 7. Start the dev server: `FLASK_DEBUG=1 python3 app.py`
-8. Open `http://127.0.0.1:5000` in Safari, add to Home Screen, then tap **Notify me**
+8. Open `http://127.0.0.1:5000` in Safari, add to Home Screen, then tap the **bell**
 
 ## Project Structure
 
 ```
 DailyKoanPWA/
-├── app.py              # Flask backend (koans, subscriptions, push)
-├── push_sender.py      # Daily push broadcast script
-├── init_db.py          # Create subscriptions.db
+├── app.py              # Flask backend (routes, subscriptions, push)
+├── koan_selector.py    # Shared koan selection + settings state (app & push sender)
+├── push_sender.py      # Timer-run push broadcast
+├── init_db.py           # Create subscriptions.db + settings defaults
 ├── init_vapid.py       # Generate VAPID keys for Web Push
 ├── init_icons.py       # Generate placeholder PWA icons
-├── koans.json          # Source data (14 Zen koans with commentary & verse)
+├── koans.json          # Source data (14 koans, group/order/id metadata)
 ├── requirements.txt    # Python dependencies
-├── mockup.html         # Standalone design mockup
+├── mockup.html         # Standalone design mockup (0.1.5 reference)
 ├── templates/
-│   └── index.html      # Koan page (Tailwind + Alpine + HTMX)
+│   └── index.html      # Koan page (Tailwind + Alpine + settings drawer)
 ├── static/
 │   ├── manifest.json   # PWA manifest
 │   └── sw.js           # Service worker (push + offline)
+├── tests/
+│   ├── test_app.py           # Route tests (mode, next, settings, deep links)
+│   ├── test_koan_selector.py # Selection/settings state tests
+│   └── test_push_sender.py   # Payload truncate tests
 └── docs/
-    ├── 001--llm--DEPLOYMENT.md                  # subdomain-on-an-existing-droplet guide
-    ├── 001.1--llm--FORGE_DEPLOYMENT.md          # Forge deploy + Oct-24 nginx postmortem (mandatory reading)
-    ├── 001.2--llm--STANDALONE_DROPLET_DEPLOYMENT.md  # separate-droplet deploy (isolated failure domain)
-    ├── 001.3--usr--standalone-droplet-checklist.md   # 001.2 execution checklist
-    ├── 001.11--llm--MIGRATE_TO_FORGE.md             # standalone -> Forge, same-as-wmw, with rollback
-    ├── 001.12--usr--migrate-to-forge-checklist.md    # 001.11 execution checklist
-    ├── 001--*--spec/status files                 # specs, status, briefs
-    └── adr/                                     # architecture decision records (why, not how)
+    ├── 002--usr--TWEAKS.md   / 002--llm--TWEAKS.md    # executed tweak spec
+    ├── 003--llm--KOAN_PROGRESSION.md                   # progression analysis (gates, corpus, componentization)
+    ├── 001.2--llm--STANDALONE_DROPLET_DEPLOYMENT.md    # separate-droplet deploy (isolated failure domain)
+    ├── 001.3--usr--standalone-droplet-checklist.md      # 001.2 execution checklist
+    ├── 001.11--llm--MIGRATE_TO_FORGE.md                  # standalone -> Forge, with rollback
+    ├── 001.12--usr--migrate-to-forge-checklist.md        # 001.11 execution checklist
+    └── adr/                                             # architecture decision records (why, not how)
 ```
+
+Run the tests: `venv/bin/python -m unittest discover -s tests` (43 tests).
 
 ## Deployment
 
@@ -60,7 +68,7 @@ Three runbooks, in execution order:
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.9+ (venv runs 3.9.6; pyproject/ruff target `py39`)
 - iOS 16.4+ for Web Push notifications (must be installed as Home Screen PWA)
 - HTTPS in production (required by Web Push API)
 
