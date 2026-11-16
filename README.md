@@ -47,6 +47,7 @@ DailyKoanPWA/
 │   ├── test_koan_selector.py # Selection/settings state tests
 │   └── test_push_sender.py   # Payload truncate tests
 └── docs/
+    ├── 000--diagram--llm.md                        # file map (mermaid: runtime + push decision)
     ├── 002--usr--TWEAKS.md   / 002--llm--TWEAKS.md    # executed tweak spec
     ├── 003--llm--KOAN_PROGRESSION.md                   # progression analysis (gates, corpus, componentization)
     ├── 001.2--llm--STANDALONE_DROPLET_DEPLOYMENT.md    # separate-droplet deploy (isolated failure domain)

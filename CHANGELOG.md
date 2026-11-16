@@ -24,6 +24,7 @@
 - Migration is additive and automatic on next `git pull && systemctl restart dailykoan`; no manual DB step. Suggested `sqlite3 subscriptions.db ".backup subscriptions.db.bak"` before the deploy as routine care.
 - `mockup.html` is stale relative to 0.1.6 (header, drawer, Random button, theme bootstrap); it remains the 0.1.5 design reference. Template is the source of truth.
 - Analysis follow-up (gates/levels, corpus fill-out, componentization verdict): `docs/003--llm--KOAN_PROGRESSION.md`.
+- File map — mermaid runtime + push-decision diagrams: `docs/000--diagram--llm.md`. 002 front matter gained a plain-English summary, hours-to-implement estimates, and a done/pending task tracker.
 
 ## [0.1.5] — Tweaks 2 & 3 (partial 002 execution)
 

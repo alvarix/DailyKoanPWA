@@ -2,6 +2,25 @@
 
 Version: 002 — llm
 Status: EXECUTED — all three tweaks shipped. Tweaks 2 & 3 in 0.1.5; Tweak 1 (held-koan mode, settings drawer, night mode) in 0.1.6. Follow-on analysis (gates, corpus fill-out): docs/003--llm--KOAN_PROGRESSION.md.
+Related: docs/000--diagram--llm.md (file map), docs/adr/ (the why).
+
+## Summary
+
+Three tweaks, all shipped — plus the settings drawer, night mode, and ordered progression that came with them. In plain English (moved up from the foot of the doc): today the app picks the koan by the date — like a page-a-day calendar. The new mode is a bookmark instead: everyone sees the same page, and it only turns when someone physically taps "Next Koan". A switch in the settings drawer flips back to calendar mode. Second, the phone alert used to say `"Daily Koan: <title>"` followed by a snippet; now it just says the koan itself (the phone will always show the app's name in tiny letters above — phones insist). Third, the commentary and verse used to pop open on the page; now everything starts folded, like the rest of the app's calm.
+
+Hours to implement (rough estimates; agent build time unless noted):
+
+| Chunk | Est. h |
+| --- | --- |
+| Tweak 3 — collapsed defaults | 0.5 |
+| Tweak 2 — bare alert + byte-safe truncate | 1 |
+| Tweak 1 — backend (`koan_selector.py`, routes, push mode logic) | 4 |
+| Tweak 1 — frontend (drawer, night mode, header, random button) | 3 |
+| Tests — 43 (`test_app`, `test_koan_selector`) | 2 |
+| Docs — 002 status, 003 analysis, ADR flips, changelog, readme | 1.5 |
+| **Shipped total** | **12** |
+| Deploy 0.1.6 + on-phone verification (Alvar, human time) | 0.5–1 |
+| 003 Phase 2 — corpus fill-out + `stage` field (future) | 10–20 |
 
 ## Task Tracker
 
@@ -20,6 +39,7 @@ Status: EXECUTED — all three tweaks shipped. Tweaks 2 & 3 in 0.1.5; Tweak 1 (h
 | 43-test suite (selection state, routes, CSRF, dedupe) | `tests/`, 0.1.6 |
 | Docs — changelog 0.1.6, README/RUN, ADR flips (data-model, push-pipeline, frontend), 003 analysis, AGENTS.md testing-mode rule | commit `9067ef9` |
 | Committed + pushed (`main`, `2397358` `bcc2160` `9067ef9`) | done 2026-11-17 |
+| File map — mermaid runtime + push-decision diagrams | docs/000--diagram--llm.md, this commit |
 
 ### Pending
 
@@ -219,10 +239,6 @@ Template-only change — no backend, no DB, no push impact:
 | post-`/api/next` DOM update | `window.location.reload()` | One worker, one real subscriber: a reload is simpler and always coherent; Alpine state diffing is a future nicety |
 | `daily` Next = per-visitor `<a>` link | `POST /api/next` 409s in daily; the link stays | Kept the spec's behavior — per-visitor navigation in daily mode; the 409 documents the boundary |
 | push time control "affects delivery" | drawer records the preference; delivery stays `OnCalendar 08:00` | Honest UI: moving the timer is an ops step (edit unit, daemon-reload), not a settings row. Spec reviewers flagged the lying-UI risk |
-
-## For Dummies (Plain English)
-
-Three changes. First, today the app picks the koan by the date — like a page-a-day calendar. The new mode is a bookmark instead: everyone sees the same page, and it only turns when you physically tap "Next Koan". A switch on the page flips back to calendar mode. Second, the phone alert currently says "Daily Koan: <title>" followed by a snippet. Afterward it just says the koan itself (the phone will always show the app's name in tiny letters above — phones insist). Third, the commentary and verse currently pop open on the page; after, everything starts folded, like the rest of the app's calm.
 
 ## Peer Review
 
