@@ -3,6 +3,35 @@
 Version: 002 — llm
 Status: EXECUTED — all three tweaks shipped. Tweaks 2 & 3 in 0.1.5; Tweak 1 (held-koan mode, settings drawer, night mode) in 0.1.6. Follow-on analysis (gates, corpus fill-out): docs/003--llm--KOAN_PROGRESSION.md.
 
+## Task Tracker
+
+### Done
+
+| Task | Where / Commit |
+| --- | --- |
+| Tweak 3 — commentary + verse collapsed by default | 0.1.5 |
+| Tweak 2 — bare-alert push payload (body only, byte-safe truncate) | 0.1.5 |
+| Tweak 1 — held-koan mode + Hold/Daily toggle + atomic pointer advance | 0.1.6, `koan_selector.py` + `app.py` |
+| Settings drawer (mode, order, push time, night mode) + header + Random Koan button | 0.1.6, `templates/index.html` |
+| Night mode — system default, pre-paint bootstrap, `dk-theme` per-device | 0.1.6, `templates/index.html` |
+| Ordered progression default + `group`/`order`/`id` metadata (file order not load-bearing) | 0.1.6, `koans.json` + `koan_selector.load_koans` |
+| Componentization — selection + settings in one shared module, both processes import it | 0.1.6, `koan_selector.py` (verdict: docs/003 §5) |
+| Mode-aware push with dedupe in both modes | 0.1.6, `push_sender.py` |
+| 43-test suite (selection state, routes, CSRF, dedupe) | `tests/`, 0.1.6 |
+| Docs — changelog 0.1.6, README/RUN, ADR flips (data-model, push-pipeline, frontend), 003 analysis, AGENTS.md testing-mode rule | commit `9067ef9` |
+| Committed + pushed (`main`, `2397358` `bcc2160` `9067ef9`) | done 2026-11-17 |
+
+### Pending
+
+| Task | Owner / Notes |
+| --- | --- |
+| Deploy 0.1.6 to dkStandalone (runbook 9.2: DB backup, `sudo -u koan git pull`, `systemctl restart dailykoan`) | Alvar — settings migration runs itself at startup |
+| On-phone verification: drawer toggles, no wrong-theme flash on load, held-mode Next is global, push arrives next 08:00 UTC | Alvar — **no uninstall/reinstall needed**: no re-subscribe (VAPID unchanged), template is network-first (new UI on first open), SW cache v2 swaps on its own; only iOS label/icon changes (`short_name` → "Daily Koan") need remove + re-add to Home Screen — cosmetic, optional |
+| Fresh dedupe keys seed empty → first post-deploy timer run pushes once even without a Next tap | expected behavior, no action |
+| 003 Phase 2 decisions — corpus fill-out (Mumonkan 48, BCR + BoS selections), `stage`/inter-text progression, pointer reseed on fill-out deploys | Alvar's pick — docs/003 §4 |
+| Sync `mockup.html` to 0.1.6 (currently the 0.1.5 design reference; template is source of truth) | optional |
+| Known-warnings cleanup pass — CDN `integrity` attrs, `alert()` → in-page notice, gated console logging | future pass (see Known Warnings below) |
+
 ## Implementation Status
 
 | Tweak | Status | Note |
