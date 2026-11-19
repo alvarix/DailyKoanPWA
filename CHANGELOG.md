@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.8] — Delivery as data: local-time cadence (missed-push follow-up)
+
+### Changed
+- **Push cadence is settings data, not timer config** (user decision 2026-11-19: "in held mode I should still receive the notification — the same koan until I advance, every day"): both modes deliver exactly once per **local** delivery day (`push_time` + new `push_timezone`, DST-correct via `zoneinfo`). Held mode re-announces the current koan every day until Next advances it — `last_push_index` no longer suppresses sends; `last_push_date` holds the *local* date.
+- `push_sender.py`: every hourly run journals why it exits (before the delivery moment / already delivered today / completed send loop) — the missed push of Nov 18-19 was silent in held mode by design; now nothing exits without a reason on record.
+- `templates/index.html`: drawer shows the delivery timezone; it auto-syncs from the device on load (`Intl.DateTimeFormat().resolvedOptions().timeZone` → `POST /api/settings`), and the "Use my device timezone" tap re-syncs on demand with a toast.
+
+### Added
+- `settings` row `push_timezone` (default `America/New_York`); `SETTINGS_VERSION = 2` — additive migration, existing DBs upgrade on next app start / push run (insert-or-ignore preserves operator values).
+- `POST /api/settings` accepts `push_timezone` (must be a loadable IANA zone, `app.valid_timezone`); garbage zone falls back to UTC and garbage `push_time` to 08:00 at decision time.
+- `koan_selector.py`: `resolve_now`, `delivery_window`, `is_delivery_time`, `valid_timezone`; `select_push` takes `now`/`date` injection params (pure core, tests are clock-free).
+- `tests/test_koan_selector.py` + `tests/test_app.py`: **56 tests** — delivery gate open/close boundary, UTC→EST conversion, garbage fallbacks (time + zone), held re-announce, per-local-day dedupe in both modes, timezone API round-trip + 400s.
+
+### Ops (droplet, Mode-1 — same window as the deploy)
+- `dailykoan-push.timer` `OnCalendar=*-*-* 08:00:00` → `*-*-* *:00:00` (hourly tick; the settings gate decides which tick sends). `daemon-reload` + timer restart; see deployment runbook §7 and §9.2 — this unit edit is the last timer ops step: future cadence moves are drawer-only.
+
 ## [0.1.7] — Bell toggle redesign (user request 2026-11-17)
 
 ### Changed

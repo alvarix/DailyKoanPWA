@@ -1,7 +1,7 @@
 # ADR: Push Pipeline
 
-Status: Accepted (timer mechanism, retention policy, held-mode logic — executed 0.1.6)
-Date: 2026-11-16
+Status: Accepted (timer mechanism, retention policy, held-mode logic — executed 0.1.6; local-time cadence — executed 0.1.8)
+Date: 2026-11-16 (cadence amendment 2026-11-19)
 Related: docs/adr/data-model.md, docs/002--llm--TWEAKS.md, docs/001.2--llm--STANDALONE_DROPLET_DEPLOYMENT.md
 
 ## Context
@@ -11,8 +11,10 @@ Push is the product: a koan arrives on the phone without opening anything. The p
 
 ## Decision
 
-**One push mechanism: the systemd timer.** `dailykoan-push.timer` (OnCalendar 08:00:00 UTC, Persistent=true)
-fires `dailykoan-push.service` (oneshot), which runs `push_sender.py` as `koan`. Nothing else sends pushes.
+**One push mechanism: the systemd timer.** `dailykoan-push.timer` (OnCalendar `*-*-* *:00:00` — hourly since 0.1.8,
+Persistent=true) fires `dailykoan-push.service` (oneshot), which runs `push_sender.py` as `koan`. Nothing else sends
+pushes. Each hourly tick asks the settings gate "is it delivery time in `push_timezone` yet?" — the cadence lives in
+`push_time` + `push_timezone`, not in the unit file.
 
 **No push from request handlers — ever.** The rejected alternative: broadcasting from inside
 `POST /api/next` "so subscribers learn immediately". Both plan-reviewers flagged it, and it is right to
@@ -25,9 +27,11 @@ deliberately not built).
 
 **push_sender.py reads state at run time — no memory, no arguments.** Mode, current index, dedupe keys
 all come from the `settings` table when the run starts, via `koan_selector.select_push` (executed 0.1.6).
-Every run decides fresh: daily mode → deterministic koan, dedupe on `last_push_date` (protects against
-`Persistent=true` catch-up double-runs); held mode → `current_index` when `last_push_index` differs, else
-quiet exit with a journaled reason ("nothing new, 0 sent").
+Every run decides fresh: **both modes deliver exactly once per local delivery day** (0.1.8) — the dedupe key is
+`last_push_date` holding the *local* date in `push_timezone`; daily mode picks the UTC date hash (site parity),
+held mode re-announces `current_index` (user decision 2026-11-19: "the same koan until I advance, every day" —
+`last_push_index` no longer suppresses sends). A tick before the delivery moment exits with a journaled reason;
+`Persistent=true` catch-up double-runs are absorbed by the same local-day dedupe.
 
 **Retention policy — the night's hardest lesson.** Only a confirmed 404/410 from the endpoint may delete
 a subscription. The original code treated *any* send failure as dead-subscription and deleted the row:
@@ -54,6 +58,7 @@ matrix lives in 001.2's notes.
 
 ## Consequences
 
-- Timer stays armed in every mode; behavior switches are data, not operations — no systemctl games on mode change.
-- Push latency in held mode is up to ~24h (08:00 UTC boundary); accepted, revisit only if a second subscriber appears.
+- Timer stays armed in every mode; behavior switches are data, not operations — no systemctl games on mode or time change.
+- The drawer changes the delivery zone/time; the next qualifying hourly tick applies it (no `daemon-reload` for cadence moves — only the 0.1.6→0.1.8 hourly unit edit itself was an ops step).
+- Push latency in held mode is bounded by the hourly tick + local gate (≤1h after the daily moment); DST transitions are zoneinfo's problem, not ours.
 - Failure of a *send* is observable in the journal but never destructive to subscriptions; failure of *keys* is recoverable only by re-subscribe — which is why key handling is the most protected path in the codebase.

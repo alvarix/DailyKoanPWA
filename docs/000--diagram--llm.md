@@ -24,7 +24,7 @@ flowchart TD
         DATA["koans.json<br/>14 koans · group / order / id"]
     end
 
-    TIMER["dailykoan-push.timer<br/>08:00 UTC"]
+    TIMER["dailykoan-push.timer<br/>hourly tick"]
     SEND["push_sender.py"]
     RELAY["Web Push endpoints<br/>Apple · Google"]
 
@@ -40,28 +40,28 @@ flowchart TD
     SW -.->|"cache fallback"| Page
 ```
 
-Read it top to bottom — request path first, push path second. The page asks `app.py` for koans and posts setting changes; `app.py` never touches state directly — `koan_selector.py` is the only reader/writer of `koans.json` and the DB. Then, once a day, the timer fires `push_sender.py`, which reuses the *same* selector — so the web app and the push can never disagree on which koan is current.
+Read it top to bottom — request path first, push path second. The page asks `app.py` for koans and posts setting changes; `app.py` never touches state directly — `koan_selector.py` is the only reader/writer of `koans.json` and the DB. Then, every hour, the timer fires `push_sender.py`, which reuses the *same* selector — so the web app and the push can never disagree on which koan is current.
 
 ## 2. One decision, made fresh every run
 
-The point of `koan_selector.py`: mode is data, so no decision is ever remembered between runs.
+The point of `koan_selector.py`: mode and delivery schedule are data, so no decision is ever remembered between runs. The hourly run asks three questions in order:
 
 ```mermaid
 flowchart TD
-    RUN(("push_sender run")) --> READ["read settings<br/>via koan_selector"]
-    READ --> MODE{"mode"}
+    RUN(("push_sender run<br/>every hour")) --> READ["read settings<br/>via koan_selector"]
+    READ --> GATE{"local time >= push_time?<br/>(push_timezone, DST-correct)"}
+    GATE -->|"no — before the<br/>delivery moment"| QUIET["exit — journaled:<br/>before the moment"]
+    GATE -->|"yes"| DEDUPE{"last_push_date ==<br/>local today?"}
+    DEDUPE -->|"yes — already<br/>delivered today"| QUIET
+    DEDUPE -->|"no"| MODE{"mode"}
     MODE -->|"daily"| DATE["daily_index()<br/>sha256(UTC date) % N"]
-    MODE -->|"held"| PTR["current_index()<br/>global pointer"]
-    DATE --> DD{"last_push_date == today?"}
-    PTR --> DI{"last_push_index == pointer?"}
-    DD -->|"yes"| QUIET["exit quietly —<br/>journal: nothing new"]
-    DI -->|"yes"| QUIET
-    DD -->|"no"| LOOP["send loop<br/>only 404/410 deletes,<br/>other errors kept"]
-    DI -->|"no"| LOOP
-    LOOP --> MARK["mark_pushed()"]
+    MODE -->|"held"| PTR["current_index()<br/>global pointer — RE-ANNOUNCED<br/>every day until Next"]
+    DATE --> LOOP["send loop<br/>only 404/410 deletes,<br/>other errors kept"]
+    PTR --> LOOP
+    LOOP --> MARK["mark_pushed()<br/>local date"]
 ```
 
-`GET /` answers with the same two branches. `POST /api/next` calls `advance()` — `BEGIN IMMEDIATE`, atomic `+1` with wrap — and 409s in daily mode, where the pointer is meaningless.
+`GET /` answers with the same two branches (daily shows today's hash koan; held shows the pointer). `POST /api/next` calls `advance()` — `BEGIN IMMEDIATE`, atomic `+1` with wrap — and 409s in daily mode, where the pointer is meaningless.
 
 ## 3. Support files (deliberately off the diagrams)
 
@@ -71,7 +71,7 @@ flowchart TD
 | `init_vapid.py` | generates `vapid_*.pem` — gitignored, irreplaceable (data-model ADR: rotation = re-subscribe event) |
 | `init_icons.py` | placeholder PWA icon generator |
 | `mockup.html` | static design reference — lags 0.1.6; the template is the source of truth |
-| `tests/` | 43 unit tests — selector state, routes, payload truncate |
+| `tests/` | 56 unit tests — delivery gate, selection state, routes, payload truncate |
 | `requirements.txt` · `pyproject.toml` | deps; ruff targets `py39` (the venv runs 3.9.6) |
 | `static/manifest.json` | PWA manifest |
 | `docs/` + `AGENTS.md` | specs, deploy runbook (001.2), ADRs, this map; agent workflow rules |

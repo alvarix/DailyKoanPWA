@@ -4,7 +4,8 @@ A minimal, Zen-inspired progressive web app that delivers a different koan every
 
 ## Features
 
-- **Held or Daily koan**: Hold mode serves everyone the same koan until someone taps Next; Daily mode rotates deterministically by date. One tap in the settings drawer flips it
+- **Held or Daily koan**: Hold mode serves everyone the same koan until someone taps Next — and re-announces it every day until then; Daily mode rotates deterministically by date. One tap in the settings drawer flips it
+- **Delivery as data**: the push arrives once a day at your chosen local time (`push_time` + `push_timezone` in the drawer, DST-correct); the systemd timer ticks hourly and the settings gate decides which tick sends
 - **Ordered progression**: koans walk the classic texts (Mumonkan → Blue Cliff Record → others) case by case; a Random mode jumps instead
 - **Push Notifications**: iOS Safari 16.4+ and modern browsers via Web Push API; the alert carries the koan body itself
 - **Full Koan Page**: Title, source, dual commentary, and verse — collapsed by default, calm to open
