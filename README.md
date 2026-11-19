@@ -38,7 +38,7 @@ DailyKoanPWA/
 ├── requirements.txt    # Python dependencies
 ├── mockup.html         # Standalone design mockup (0.1.5 reference)
 ├── templates/
-│   └── index.html      # Koan page (Tailwind + Alpine + settings drawer)
+│   └── index.html      # Koan page (Tailwind + Alpine; drawer w/ notifications switch, bell ON badge, toast)
 ├── static/
 │   ├── manifest.json   # PWA manifest
 │   └── sw.js           # Service worker (push + offline)
@@ -57,7 +57,7 @@ DailyKoanPWA/
     └── adr/                                             # architecture decision records (why, not how)
 ```
 
-Run the tests: `venv/bin/python -m unittest discover -s tests` (43 tests).
+Run the tests: `venv/bin/python -m unittest discover -s tests` (47 tests).
 
 ## Deployment
 

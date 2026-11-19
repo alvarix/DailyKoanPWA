@@ -40,17 +40,21 @@ Hours to implement (rough estimates; agent build time unless noted):
 | Docs — changelog 0.1.6, README/RUN, ADR flips (data-model, push-pipeline, frontend), 003 analysis, AGENTS.md testing-mode rule | commit `9067ef9` |
 | Committed + pushed (`main`, `2397358` `bcc2160` `9067ef9`) | done 2026-11-17 |
 | File map — mermaid runtime + push-decision diagrams | docs/000--diagram--llm.md, this commit |
+| Determinism componentization — ability + status, hidden-clock dependency audit | docs/002--llm--deterministic-componentization.md |
+| Bell toggle redesign (0.1.7) — ON badge + drawer switch + toasts replacing alert() | `templates/index.html`, 47-test suite |
 
 ### Pending
 
 | Task | Owner / Notes |
 | --- | --- |
 | Deploy 0.1.6 to dkStandalone (runbook 9.2: DB backup, `sudo -u koan git pull`, `systemctl restart dailykoan`) | Alvar — settings migration runs itself at startup |
-| On-phone verification: drawer toggles, no wrong-theme flash on load, held-mode Next is global, push arrives next 08:00 UTC | Alvar — **no uninstall/reinstall needed**: no re-subscribe (VAPID unchanged), template is network-first (new UI on first open), SW cache v2 swaps on its own; only iOS label/icon changes (`short_name` → "Daily Koan") need remove + re-add to Home Screen — cosmetic, optional |
+| On-phone verification: drawer toggles + new notifications switch, bell ON badge, no wrong-theme flash on load, held-mode Next is global, push arrives at the timer run | Alvar — **no uninstall/reinstall needed**: no re-subscribe (VAPID unchanged), template is network-first (new UI on first open), SW cache v2 swaps on its own; only iOS label/icon changes (`short_name` → "Daily Koan") need remove + re-add to Home Screen — cosmetic, optional |
+| Missed push 2026-11-18 morning — debug pending | hypotheses + evidence commands in chat (journal + settings + subscriptions rows); ranked: timer dead → quiet exit → send-failed-kept → stale-endpoint-404 → phone-side DND |
+| Delivery at 5:00 local (Alvar's request) | **ops step, not settings**: `dailykoan-push.timer` `OnCalendar` edit + `daemon-reload`; needs Alvar's timezone to write the exact line; drawer `push_time` records the preference only |
 | Fresh dedupe keys seed empty → first post-deploy timer run pushes once even without a Next tap | expected behavior, no action |
 | 003 Phase 2 decisions — corpus fill-out (Mumonkan 48, BCR + BoS selections), `stage`/inter-text progression, pointer reseed on fill-out deploys | Alvar's pick — docs/003 §4 |
 | Sync `mockup.html` to 0.1.6 (currently the 0.1.5 design reference; template is source of truth) | optional |
-| Known-warnings cleanup pass — CDN `integrity` attrs, `alert()` → in-page notice, gated console logging | future pass (see Known Warnings below) |
+| Known-warnings cleanup pass — CDN `integrity` attrs, gated console logging | future pass (alert() item resolved in 0.1.7) |
 
 ## Implementation Status
 
@@ -64,9 +68,8 @@ Hours to implement (rough estimates; agent build time unless noted):
 These are pre-existing or architectural items surfaced by diagnostics, not blockers for Tweaks 2 & 3. Resolve when Tweak 1 is implemented or in a dedicated cleanup pass:
 
 - CDN script tags lack `integrity` subresource-integrity attributes (`templates/index.html`, `mockup.html`). Per frontend ADR this is accepted under the zero-build CDN strategy, but add hashes if offline-first hardening becomes a goal.
-- `alert()` calls in template JS may be replaced with an in-page notification element for a calmer UX.
+- `alert()` calls in template JS: **resolved in 0.1.7** — the toggle path now uses an in-page toast (`showToast`); no `alert('` call sites remain (regression-tested).
 - Console logging in `templates/index.html` SW registration and error blocks may be removed or gated in a future cleanup.
-
 
 Peer-reviewed (plan-review): `google/gemini-2.5-pro` + `openai/gpt-5`, both responded 2026-11-16. Findings folded in below; see Peer Review section.
 
@@ -168,7 +171,7 @@ Both reviewers flagged push-broadcast-inside-`POST /api/next` as the worst idea 
 
 ### Intended behavior
 
-The notification shows the koan's own text — not "Daily Koan: <title>" plus a preview. Just the teaching.
+The notification shows the koan's own text — not `"Daily Koan: <title>"` plus a preview. Just the teaching.
 
 ### Approach
 

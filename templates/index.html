@@ -73,6 +73,7 @@
     html.dark { background-color: #1a1714; }
     body { -webkit-tap-highlight-color: transparent; }
     .koan-body { text-wrap: pretty; }
+    [x-cloak] { display: none !important; }
   </style>
 </head>
 <body class="bg-paper-50 dark:bg-[#1a1714] text-ink-950 dark:text-[#ece7e0] font-sans min-h-screen antialiased"
@@ -92,7 +93,7 @@
     <button @click="toggleNotifications()"
             class="flex items-center justify-center w-10 h-10 rounded-full bg-paper-100 dark:bg-[#241f1c] hover:bg-paper-200 dark:hover:bg-[#2c2724] text-ink-800 dark:text-[#cfc7be] transition-colors shadow-sm border border-paper-200 dark:border-[#38312d]"
             :class="{ 'text-gold-500 dark:text-[#dca44a] border-gold-400/40': subscribed }"
-            aria-label="Toggle notifications">
+            :aria-label="subscribed ? 'Notifications on — tap to turn off' : 'Notifications off — tap to turn on'">
       <svg x-show="!subscribed" class="w-[18px] h-[18px]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
         <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
@@ -102,6 +103,11 @@
         <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M13.73 21a2 2 0 0 1-3.46 0"/>
       </svg>
     </button>
+    <!-- ON badge (0.1.7): an unmistakable dot when notifications are active —
+         absolute against the fixed container = the bell's top-right corner -->
+    <span x-show="subscribed" x-cloak
+          class="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-gold-400 border-2 border-paper-50 dark:border-[#241f1c]"
+          aria-hidden="true"></span>
   </div>
 
   <main class="max-w-[640px] mx-auto px-7 sm:px-10 pt-20 pb-28">
@@ -253,6 +259,25 @@
         </button>
       </div>
 
+      <!-- Notifications (0.1.7): a proper switch, first in the drawer — the
+           most consequential setting. The floating bell stays as a shortcut;
+           both share the same subscribed state and toggle path. -->
+      <p class="text-xs tracking-widest uppercase text-ink-600 dark:text-[#a89f96] mb-3">Notifications</p>
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm text-ink-800 dark:text-[#cfc7be]" x-text="subscribed ? 'On' : 'Off'"></span>
+        <button @click="toggleNotifications()" role="switch"
+                :aria-checked="subscribed ? 'true' : 'false'"
+                aria-label="Daily koan push notifications"
+                class="w-11 h-6 rounded-full border border-paper-200 dark:border-[#38312d] transition-colors"
+                :class="subscribed ? 'bg-ink-950 dark:bg-[#ece7e0]' : 'bg-paper-200 dark:bg-[#38312d]'">
+          <span class="block w-[18px] h-[18px] mt-[2px] ml-[3px] rounded-full bg-paper-50 dark:bg-[#211d19] shadow-sm transition-transform"
+                :class="subscribed ? 'translate-x-[21px]' : 'translate-x-0'"></span>
+        </button>
+      </div>
+      <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-9">
+        A koan arrives as a push notification each morning. The bell in the corner does the same thing.
+      </p>
+
       <!-- Koan mode -->
       <p class="text-xs tracking-widest uppercase text-ink-600 dark:text-[#a89f96] mb-3">Koan mode</p>
       <div class="flex gap-2 mb-2">
@@ -291,7 +316,7 @@
       </div>
       <p x-show="pushSaved" x-transition class="text-xs text-gold-500 dark:text-[#dca44a] mb-2">Saved.</p>
       <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-9">
-        Recorded as the preferred delivery time. The server timer currently fires at 08:00 UTC — moving it is an ops step (deployment runbook).
+        Your preferred delivery time (local). The server currently delivers around 08:00 UTC — moving the actual clock is an ops step on the droplet (deployment runbook).
       </p>
 
       <!-- Night mode -->
@@ -331,6 +356,13 @@
     </div>
   </div>
 
+  <!-- Toast (0.1.7): brief in-page feedback, replaces alert() popups -->
+  <div x-show="toast" x-cloak x-transition.opacity.duration.200ms
+       class="fixed bottom-8 inset-x-0 z-[60] flex justify-center pointer-events-none px-6">
+    <p class="bg-ink-950/90 dark:bg-[#ece7e0]/90 text-paper-50 dark:text-[#1a1714] text-sm px-5 py-2.5 rounded-full shadow-lg"
+       x-text="toastMessage"></p>
+  </div>
+
   <script>
     function koanApp() {
       return {
@@ -339,6 +371,9 @@
         settingsOpen: false,
         pushSaved: false,
         theme: 'system',
+        toast: false,
+        toastMessage: '',
+        toastTimer: null,
         vapidPublicKey: '{{ vapid_public_key }}',
         // Server-rendered global settings (docs/002): mode + progression are
         // global by design — one koan for everyone, single operator.
@@ -450,7 +485,20 @@
           window.location.assign('/koan/' + pick);
         },
 
-        // --- Notifications (unchanged behavior, 002) ---
+        // --- Toast (in-page feedback; replaces alert() popups, 002 cleanup) ---
+
+        /**
+         * Show a brief in-page toast at the bottom of the screen.
+         * @param {string} message - Text to display for ~2.6 seconds.
+         */
+        showToast(message) {
+          this.toastMessage = message;
+          this.toast = true;
+          clearTimeout(this.toastTimer);
+          this.toastTimer = setTimeout(() => { this.toast = false; }, 2600);
+        },
+
+        // --- Notifications (bell shortcut + drawer switch share this path) ---
 
         isIOS() {
           return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -482,7 +530,7 @@
 
         async toggleNotifications() {
           if (!('serviceWorker' in navigator)) {
-            alert('Push notifications are not supported in this browser.');
+            this.showToast('Push notifications are not supported in this browser.');
             return;
           }
 
@@ -494,7 +542,7 @@
           try {
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') {
-              alert('Please allow notifications to subscribe.');
+              this.showToast('Notifications blocked — allow them in browser settings to subscribe.');
               return;
             }
 
@@ -509,6 +557,7 @@
                 body: JSON.stringify({ endpoint: sub.endpoint })
               });
               this.subscribed = false;
+              this.showToast('Notifications off');
             } else {
               sub = await reg.pushManager.subscribe({
                 userVisibleOnly: true,
@@ -520,10 +569,11 @@
                 body: JSON.stringify(sub.toJSON())
               });
               this.subscribed = true;
+              this.showToast('Notifications on');
             }
           } catch (e) {
             console.error('Push error:', e);
-            alert('Something went wrong. Please try again.');
+            this.showToast('Something went wrong. Please try again.');
           }
         }
       };

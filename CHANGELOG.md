@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.7] — Bell toggle redesign (user request 2026-11-17)
+
+### Changed
+- `templates/index.html`: notifications get a proper switch in the settings drawer (first section, `role="switch"` + `aria-checked`), and the floating bell gains an explicit ON badge dot — the gold bell alone was not a clear enough state signal. Both share the same `subscribed` state and toggle path.
+- All `alert()` popups in the toggle path replaced by a brief in-page toast (`showToast`, bottom-center, ~2.6s): unsupported browser, permission blocked, error, and explicit "Notifications on/off" after every flip. 002 known-warnings item resolved.
+- Bell `aria-label` is Alpine-bound and states the current position ("Notifications on — tap to turn off").
+- Push-time drawer caption clarified: preferred delivery time (local) vs the actual server clock (ops step).
+
+### Added
+- `tests/test_app.py`: 4 template regression tests (switch present, badge + toast present, zero `alert('` call sites, no static aria-label) — 47 total.
+
 ## [0.1.6] — 002 Tweak 1: held-koan mode + settings drawer
 
 ### Added
@@ -25,6 +36,7 @@
 - `mockup.html` is stale relative to 0.1.6 (header, drawer, Random button, theme bootstrap); it remains the 0.1.5 design reference. Template is the source of truth.
 - Analysis follow-up (gates/levels, corpus fill-out, componentization verdict): `docs/003--llm--KOAN_PROGRESSION.md`.
 - File map — mermaid runtime + push-decision diagrams: `docs/000--diagram--llm.md`. 002 front matter gained a plain-English summary, hours-to-implement estimates, and a done/pending task tracker.
+- Determinism componentization analysis (ability + status; companion to 003 §5): `docs/002--llm--deterministic-componentization.md`.
 
 ## [0.1.5] — Tweaks 2 & 3 (partial 002 execution)
 

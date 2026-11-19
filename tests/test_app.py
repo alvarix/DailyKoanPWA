@@ -191,9 +191,41 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(body["current_index"], 4)
         self.assertEqual(body["koan"]["title"], load_koans()[4]["title"])
 
+    # --- 0.1.7 template surface (bell toggle redesign) ---
+
+    def test_index_has_drawer_notification_switch(self):
+        """Drawer carries a proper switch, first section (user request 2026-11-17)."""
+        page = html.unescape(self.client.get("/").get_data(as_text=True))
+        self.assertIn('role="switch"', page)
+        self.assertIn("aria-checked", page)
+        self.assertIn(">Notifications</p>", page)
+
+    def test_index_has_on_badge_and_toast(self):
+        """Bell shows an explicit ON badge; feedback is an in-page toast."""
+        page = html.unescape(self.client.get("/").get_data(as_text=True))
+        self.assertIn("bg-gold-400", page)          # badge dot
+        self.assertIn('x-show="toast"', page)      # toast element
+        self.assertIn('x-text="toastMessage"', page)
+        self.assertIn("showToast", page)            # Alpine method exists
+
+    def test_index_has_no_alert_popups(self):
+        """All alert() popups replaced by toasts (002 known-warnings cleanup).
+
+        Checks `alert('` (call sites) rather than `alert(` — comments still
+        reference the removed function by name, which is fine.
+        """
+        page = self.client.get("/").get_data(as_text=True)
+        self.assertNotIn("alert('", page)
+
+    def test_bell_aria_reflects_state_template(self):
+        """aria-label is Alpine-bound, not the old static string."""
+        page = self.client.get("/").get_data(as_text=True)
+        self.assertNotIn('aria-label="Toggle notifications"', page)
+
 
 def load_koans():
     return koan_selector.load_koans()
+
 
 
 if __name__ == "__main__":
