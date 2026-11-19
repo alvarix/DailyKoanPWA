@@ -28,6 +28,7 @@ from koan_selector import (
     get_settings,
     load_koans,
     set_values,
+    valid_timezone,
 )
 
 # Load VAPID public key if available
@@ -102,6 +103,7 @@ def _page_context(koan, idx, cur):
         "mode": settings.get("mode", "held"),
         "progression": settings.get("progression", "ordered"),
         "push_time": settings.get("push_time", "08:00"),
+        "push_timezone": settings.get("push_timezone", "America/New_York"),
         "current_index": cur,
         "viewing_current": idx == cur,
         "vapid_public_key": VAPID_PUBLIC_KEY,
@@ -219,6 +221,16 @@ def api_settings_post():
         if data["progression"] not in VALID_PROGRESSIONS:
             return jsonify({"error": "progression must be 'ordered' or 'random'"}), 400
         updates["progression"] = data["progression"]
+    if "push_timezone" in data:
+        # 0.1.8: delivery time became data. The client auto-syncs its IANA
+        # zone here (single operator — the device zone IS the right zone);
+        # the drawer also offers a manual "use my device timezone" tap.
+        value = data["push_timezone"]
+        if not isinstance(value, str) or not valid_timezone(value):
+            return jsonify(
+                {"error": "push_timezone must be an IANA zone (e.g. America/New_York)"}
+            ), 400
+        updates["push_timezone"] = value
     if not updates:
         return jsonify({"error": "No valid settings in request"}), 400
     set_values(**updates)

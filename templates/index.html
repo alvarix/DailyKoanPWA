@@ -315,9 +315,19 @@
                 class="px-4 py-2 rounded-full text-sm font-medium bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724] transition-colors">Save</button>
       </div>
       <p x-show="pushSaved" x-transition class="text-xs text-gold-500 dark:text-[#dca44a] mb-2">Saved.</p>
-      <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-9">
-        Your preferred delivery time (local). The server currently delivers around 08:00 UTC — moving the actual clock is an ops step on the droplet (deployment runbook).
+      <!-- 0.1.8: the delivery clock is REAL data — the timer ticks hourly and
+           this time + the saved timezone gate the send. Changed here, applied
+           from tomorrow's first qualifying tick. -->
+      <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-2">
+        Delivered once a day at this local time. Held mode re-announces the current koan every day until you press Next.
       </p>
+      <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-2">
+        Timezone: <span class="text-ink-800 dark:text-[#cfc7be]" x-text="settings.push_timezone"></span>
+      </p>
+      <button @click="syncTimezone()"
+              class="text-xs underline decoration-paper-200 dark:decoration-[#38312d] underline-offset-2 text-ink-600 dark:text-[#a89f96] hover:text-ink-800 dark:hover:text-[#cfc7be] transition-colors mb-9">
+        Use my device timezone
+      </button>
 
       <!-- Night mode -->
       <p class="text-xs tracking-widest uppercase text-ink-600 dark:text-[#a89f96] mb-3">Night mode</p>
@@ -380,6 +390,7 @@
         settings: {
           mode: '{{ mode }}',
           progression: '{{ progression }}',
+          push_timezone: '{{ push_timezone }}',
         },
         today: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
 
@@ -394,6 +405,10 @@
             else if (mq.addListener) mq.addListener(onChange);
           }
           this.checkSubscription();
+          // 0.1.8: auto-detect the device IANA zone and record it — the
+          // single operator's device IS the delivery zone. Silent unless the
+          // zone changed (then it toasts once).
+          this.syncTimezone(true);
         },
 
         // --- Theme (per-device, localStorage 'dk-theme') ---
@@ -459,6 +474,38 @@
             this.pushSaved = res.ok;
             if (this.pushSaved) setTimeout(() => this.pushSaved = false, 2500);
           } catch (e) { console.error('Save push time error:', e); }
+        },
+
+        /**
+         * Record the device's IANA timezone server-side (0.1.8).
+         * @param {boolean} [silent=false] - true from init(): no toast when
+         *   the zone already matches (page loads stay quiet); a CHANGED zone
+         *   always toasts once so the fix is visible.
+         */
+        async syncTimezone(silent = false) {
+          let zone = null;
+          try {
+            // Supported on every target (iOS 16.4+, modern Chrome/Firefox).
+            zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          } catch (e) { return; }
+          if (!zone) return;
+          if (zone === this.settings.push_timezone) {
+            if (!silent) this.showToast('Timezone unchanged: ' + zone);
+            return;
+          }
+          try {
+            const res = await fetch('/api/settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ push_timezone: zone })
+            });
+            if (res.ok) {
+              this.settings.push_timezone = zone;
+              this.showToast('Delivery timezone: ' + zone);
+            } else {
+              console.error('Timezone sync failed:', res.status);
+            }
+          } catch (e) { console.error('Timezone sync error:', e); }
         },
 
         // --- Koan navigation ---

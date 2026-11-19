@@ -152,6 +152,8 @@ class AppTestCase(unittest.TestCase):
         body = res.get_json()
         self.assertEqual(body["mode"], "held")
         self.assertEqual(body["push_time"], "08:00")
+        # 0.1.8: the delivery zone is settings data (default from the seed)
+        self.assertEqual(body["push_timezone"], "America/New_York")
 
     def test_settings_post_push_time(self):
         res = self.client.post("/api/settings", json={"push_time": "07:30"})
@@ -161,6 +163,22 @@ class AppTestCase(unittest.TestCase):
     def test_settings_post_push_time_invalid(self):
         for bad in ("25:00", "8am", "", None):
             res = self.client.post("/api/settings", json={"push_time": bad})
+            self.assertEqual(res.status_code, 400, msg=repr(bad))
+
+    def test_settings_post_push_timezone(self):
+        """0.1.8: the delivery timezone round-trips through /api/settings."""
+        res = self.client.post("/api/settings", json={"push_timezone": "Europe/Madrid"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(get_settings()["push_timezone"], "Europe/Madrid")
+
+    def test_settings_post_push_timezone_invalid(self):
+        """Only a loadable IANA zone is accepted (app.valid_timezone gate).
+
+        Note "EST" is deliberately absent: zoneinfo can load the legacy
+        fixed-offset name, so it is accepted too — DST-less but functional.
+        """
+        for bad in ("Not/AZone", "America/Nowhere", "", None):
+            res = self.client.post("/api/settings", json={"push_timezone": bad})
             self.assertEqual(res.status_code, 400, msg=repr(bad))
 
     def test_settings_post_progression(self):

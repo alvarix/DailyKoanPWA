@@ -10,6 +10,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -20,12 +21,15 @@ from koan_selector import (
     advance,
     current_index,
     daily_index,
+    delivery_window,
     ensure_settings,
     get_settings,
+    is_delivery_time,
     load_koans,
     mark_pushed,
     select_push,
     set_values,
+    valid_timezone,
 )
 
 
@@ -61,6 +65,7 @@ class TestMigration(TempDbTestCase):
         self.assertEqual(settings["mode"], "held")
         self.assertEqual(settings["progression"], "ordered")
         self.assertEqual(settings["push_time"], "08:00")
+        self.assertEqual(settings["push_timezone"], "America/New_York")
         self.assertEqual(settings["last_push_date"], "")
         self.assertEqual(settings["last_push_index"], "")
         # seed = today's deterministic index
@@ -79,9 +84,11 @@ class TestMigration(TempDbTestCase):
     def test_preserves_user_values(self):
         """A re-run must not clobber settings the operator changed."""
         ensure_settings(self.db, total_koans=14, today="2026-11-16")
-        set_values(self.db, push_time="09:30")
+        set_values(self.db, push_time="09:30", push_timezone="Europe/Madrid")
         ensure_settings(self.db, total_koans=14, today="2026-11-16")
-        self.assertEqual(get_settings(self.db)["push_time"], "09:30")
+        settings = get_settings(self.db)
+        self.assertEqual(settings["push_time"], "09:30")
+        self.assertEqual(settings["push_timezone"], "Europe/Madrid")
 
     def test_user_version_set(self):
         ensure_settings(self.db, total_koans=14, today="2026-11-16")
@@ -172,39 +179,109 @@ class TestModeSwitch(TempDbTestCase):
             set_values(self.db, mode="held", current_index="999")
 
 
+class TestDeliveryGate(unittest.TestCase):
+    """is_delivery_time / delivery_window / valid_timezone: the hourly gate."""
+
+    SETTINGS = {
+        "push_time": "08:00",
+        "push_timezone": "America/New_York",
+    }
+
+    def test_valid_timezone(self):
+        self.assertTrue(valid_timezone("America/New_York"))
+        self.assertTrue(valid_timezone("Europe/Madrid"))
+        self.assertFalse(valid_timezone("Not/AZone"))
+        self.assertFalse(valid_timezone(""))
+
+    def test_window_converts_utc_to_local(self):
+        # 2026-11-16 13:00 UTC = 08:00 EST (UTC-5 after the Nov 1 DST end)
+        date, hhmm = delivery_window(
+            self.SETTINGS, now=datetime(2026, 11, 16, 13, 0, tzinfo=timezone.utc)
+        )
+        self.assertEqual(date, "2026-11-16")
+        self.assertEqual(hhmm, "08:00")
+
+    def test_window_garbage_zone_falls_back_to_utc(self):
+        settings = {**self.SETTINGS, "push_timezone": "Not/AZone"}
+        date, hhmm = delivery_window(
+            settings, now=datetime(2026, 11, 16, 13, 0, tzinfo=timezone.utc)
+        )
+        self.assertEqual((date, hhmm), ("2026-11-16", "13:00"))
+
+    def test_gate_opens_at_push_time(self):
+        # EST instants: 07:59 closed, 08:00 open, 15:00 still open.
+        before = datetime(2026, 11, 16, 12, 59, tzinfo=timezone.utc)
+        at = datetime(2026, 11, 16, 13, 0, tzinfo=timezone.utc)
+        after = datetime(2026, 11, 16, 20, 0, tzinfo=timezone.utc)
+        self.assertFalse(is_delivery_time(self.SETTINGS, now=before))
+        self.assertTrue(is_delivery_time(self.SETTINGS, now=at))
+        self.assertTrue(is_delivery_time(self.SETTINGS, now=after))
+
+    def test_gate_garbage_push_time_falls_back_to_08(self):
+        # 14:00 UTC = 09:00 EST: past the 08:00 fallback, so open.
+        now = datetime(2026, 11, 16, 14, 0, tzinfo=timezone.utc)
+        for bad in ("25:99", "nope"):
+            settings = {**self.SETTINGS, "push_time": bad}
+            self.assertTrue(is_delivery_time(settings, now=now), msg=bad)
+
+
 class TestPushDecision(TempDbTestCase):
-    """select_push: the dedupe logic the timer relies on."""
+    """select_push: the hourly timer's decision (0.1.8 cadence).
+
+    BOTH modes deliver exactly once per LOCAL push-day. Held mode
+    RE-ANNOUNCES the current pointer every day (user decision 2026-11-19:
+    "the same koan until I advance, every day") — the pointer never
+    suppresses the push anymore.
+    """
 
     KOANS = [{"title": f"k{i}", "koan_text": f"koan {i}"} for i in range(14)]
 
-    def test_daily_pushes_then_dedupes(self):
-        settings = self.seed(mode="daily")
-        settings["last_push_date"] = ""
-        picked = select_push(self.KOANS, settings, date="2026-11-16")
-        self.assertIsNotNone(picked)
-        assert picked is not None  # narrows Optional for the type checker
-        idx, koan = picked
-        self.assertEqual(idx, daily_index(14, "2026-11-16"))
-        self.assertEqual(koan, self.KOANS[idx])
+    # 2026-11-16 13:00 UTC = 08:00 America/New_York: the gate's open moment.
+    OPEN_NOW = datetime(2026, 11, 16, 13, 0, tzinfo=timezone.utc)
 
-        settings["last_push_date"] = "2026-11-16"  # already pushed today
-        self.assertIsNone(select_push(self.KOANS, settings, date="2026-11-16"))
+    def _settings(self, mode="held", current_index=4):
+        settings = self.seed(mode=mode, current_index=current_index)
+        settings["last_push_date"] = ""  # nothing delivered today yet
+        settings["last_push_index"] = str(current_index)
+        return settings
 
-    def test_held_pushes_only_when_moved(self):
-        settings = self.seed(mode="held", current_index=4)
-        settings["last_push_index"] = "4"  # already pushed this position
-        self.assertIsNone(select_push(self.KOANS, settings, date="2026-11-16"))
+    def test_gate_closed_before_push_time(self):
+        settings = self._settings()
+        before = datetime(2026, 11, 16, 12, 59, tzinfo=timezone.utc)
+        self.assertIsNone(select_push(self.KOANS, settings, now=before))
 
-        settings["last_push_index"] = "3"  # someone pressed Next since
-        picked = select_push(self.KOANS, settings, date="2026-11-16")
+    def test_held_reannounces_same_pointer_every_day(self):
+        """0.1.8: held pushes even when last_push_index == the pointer."""
+        settings = self._settings(mode="held", current_index=4)
+        picked = select_push(self.KOANS, settings, now=self.OPEN_NOW)
         assert picked is not None  # narrows Optional for the type checker
         self.assertEqual(picked[0], 4)
 
+    def test_held_dedupes_within_local_day(self):
+        settings = self._settings(mode="held", current_index=4)
+        picked = select_push(self.KOANS, settings, now=self.OPEN_NOW)
+        assert picked is not None
+        mark_pushed(self.db, index=picked[0], date="2026-11-16")  # local EST date
+        settings = get_settings(self.db)
+        self.assertIsNone(select_push(self.KOANS, settings, now=self.OPEN_NOW))
+
+    def test_daily_pushes_today_then_dedupes(self):
+        settings = self._settings(mode="daily")
+        picked = select_push(self.KOANS, settings, date="2026-11-16", now=self.OPEN_NOW)
+        assert picked is not None
+        # selection is the UTC date hash (site parity), not the local date
+        self.assertEqual(picked[0], daily_index(14, "2026-11-16"))
+        mark_pushed(self.db, index=picked[0], date="2026-11-16")
+        settings = get_settings(self.db)
+        self.assertIsNone(
+            select_push(self.KOANS, settings, date="2026-11-16", now=self.OPEN_NOW)
+        )
+
     def test_default_mode_is_held(self):
-        """Fresh install defaults to held (docs/002 tweak 1)."""
+        """Fresh install: gate open, nothing delivered -> the pointer koan."""
         ensure_settings(self.db, total_koans=14, today="2026-11-16")
         settings = get_settings(self.db)
-        picked = select_push(self.KOANS, settings, date="2026-11-16")
+        picked = select_push(self.KOANS, settings, now=self.OPEN_NOW)
         assert picked is not None  # narrows Optional for the type checker
         self.assertEqual(picked[0], int(settings["current_index"]))
 

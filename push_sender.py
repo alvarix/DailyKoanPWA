@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """
-Standalone push sender (dailykoan-push.service, fired by the 08:00 UTC timer).
+Standalone push sender (dailykoan-push.service, hourly timer tick).
 
 The timer is the ONLY push mechanism (push-pipeline ADR): nothing in the Flask
-app ever broadcasts. This script decides at run time — via koan_selector, the
-same shared module the app imports — which koan (if any) goes out today:
+app ever broadcasts. Since 0.1.8 the timer ticks HOURLY and this script decides
+at run time — via koan_selector, the same shared module the app imports —
+whether the configured delivery moment has arrived and which koan goes out:
 
-  daily mode:  today's deterministic koan, deduped on last_push_date
-               (Persistent=true may double-fire the timer; the date key
-               absorbs the rerun).
-  held mode:   the current global pointer, but only when it moved since the
-               last push (last_push_index dedupe); otherwise exit quietly.
+  0.1.8 cadence (user decision 2026-11-19): BOTH modes deliver exactly once per
+  local push-day (settings push_time + push_timezone):
+    daily mode:  today's UTC-date-hash koan (same as the site serves).
+    held mode:   the current global pointer — re-announced EVERY day until
+                 Next advances it ("the same koan until I advance, every day").
 
-Nothing is sent until the decision is made, and the dedupe keys are only
-written AFTER a completed send loop (koan_selector.mark_pushed), so a crash
-mid-broadcast re-sends rather than silently skipping a day.
+Every hourly run exits with a journaled reason: before the delivery moment,
+already delivered today, or a completed send loop. The dedupe key
+(last_push_local_date) is only written AFTER a completed loop
+(koan_selector.mark_pushed), so a crash mid-broadcast re-sends rather than
+silently skipping a day.
 """
 
 import json
@@ -25,8 +28,10 @@ from pywebpush import WebPushException, webpush
 
 import koan_selector
 from koan_selector import (
+    delivery_window,
     ensure_settings,
     get_settings,
+    is_delivery_time,
     load_koans,
     mark_pushed,
     select_push,
@@ -135,15 +140,22 @@ def main():
     picked = select_push(koans, settings)
 
     if picked is None:
-        # Quiet exit — but say why, so a missed koan is diagnosable in the
-        # journal (push-pipeline ADR: the journal is the log).
+        # Quiet exit — but say which gate closed, so a missed koan is
+        # diagnosable in the journal (push-pipeline ADR: the journal is the log).
         mode = settings.get("mode")
-        print(
-            "Nothing new to push "
-            f"(mode={mode}, current_index={settings.get('current_index')}, "
-            f"last_push_date={settings.get('last_push_date') or '-'!r}, "
-            f"last_push_index={settings.get('last_push_index') or '-'!r})."
-        )
+        local_date, local_hhmm = delivery_window(settings)
+        if not is_delivery_time(settings):
+            print(
+                "Before the delivery moment — next hourly tick may deliver "
+                f"(mode={mode}, local now {local_hhmm} {settings.get('push_timezone') or 'UTC'}, "
+                f"push_time={settings.get('push_time')})."
+            )
+        else:
+            print(
+                "Already delivered today — dedupe "
+                f"(mode={mode}, local_date={local_date}, "
+                f"last_push_date={settings.get('last_push_date') or '-'!r})."
+            )
         print("Done. Sent: 0, Removed dead: 0, Failed (kept): 0")
         return
 
@@ -179,6 +191,8 @@ def main():
             failed += 1
 
     # Dedupe keys only after a completed send loop (crash => re-send, not skip).
+    # 0.1.8: date is the LOCAL delivery date in push_timezone (one push per
+    # local day — the hourly ticks after the first delivery all dedupe here).
     mark_pushed(index=idx)
 
     print(f"Done. Sent: {sent}, Removed dead: {dead}, Failed (kept): {failed}")
