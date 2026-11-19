@@ -203,10 +203,10 @@ class AppTestCase(unittest.TestCase):
     def test_index_has_on_badge_and_toast(self):
         """Bell shows an explicit ON badge; feedback is an in-page toast."""
         page = html.unescape(self.client.get("/").get_data(as_text=True))
-        self.assertIn("bg-gold-400", page)          # badge dot
-        self.assertIn('x-show="toast"', page)      # toast element
+        self.assertIn("bg-gold-400", page)  # badge dot
+        self.assertIn('x-show="toast"', page)  # toast element
         self.assertIn('x-text="toastMessage"', page)
-        self.assertIn("showToast", page)            # Alpine method exists
+        self.assertIn("showToast", page)  # Alpine method exists
 
     def test_index_has_no_alert_popups(self):
         """All alert() popups replaced by toasts (002 known-warnings cleanup).
@@ -225,7 +225,6 @@ class AppTestCase(unittest.TestCase):
 
 def load_koans():
     return koan_selector.load_koans()
-
 
 
 if __name__ == "__main__":
