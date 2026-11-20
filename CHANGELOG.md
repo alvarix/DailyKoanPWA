@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0] — Push title = koan title (002.2 follow-up)
+
+### Changed
+- `push_sender.py`: payload now carries `title: <koan title>` instead of omitting the title. The service worker fallback was the app name, producing a duplicate "Daily Koan" / "From Koan" line on iOS. The OS-level app header is still unavoidable; the second line now shows the koan title instead.
+- `static/sw.js`: title fallback changed from `'Daily Koan'` to `''`. If a malformed payload arrives, the notification body still renders with an empty title instead of a duplicate app name.
+- `push_sender.py`: refactored payload construction into `build_payload(idx, koan)` so the title/body shape is unit-testable without the full send loop.
+
+### Fixed
+- `truncate_utf8_bytes`: account for the ellipsis bytes so the returned text always fits within `max_bytes` (previously 3003 bytes for a 3000-byte limit).
+
+### Added
+- `tests/test_koan_selector.py`: `TestPushDecision` cases for payload title and byte-safe body truncation.
+
 ## [0.1.8] — Delivery as data: local-time cadence (missed-push follow-up)
 
 ### Changed

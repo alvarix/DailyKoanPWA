@@ -56,25 +56,32 @@ def get_subscriptions():
     return rows
 
 
-def truncate_utf8_bytes(text, max_bytes=3000):
+def truncate_utf8_bytes(text, max_bytes=750):
     """Truncate text to fit within max_bytes UTF-8 bytes without splitting a codepoint.
 
     Web Push payloads must stay under the client's encrypted-size budget. A plain
     character count can overshoot because multi-byte codepoints and JSON escaping
     both cost bytes. This function works on the UTF-8 byte representation and backs
     up to the last complete codepoint before appending an ellipsis.
+
+    Current longest koan is ~350 bytes, but the banner display on iOS still
+    truncates visually. Raising the payload limit to 750 gives headroom for
+    future longer koans while staying well under the encrypted-size budget.
     """
+    ellipsis = "…".encode()
     encoded = text.encode("utf-8")
     if len(encoded) <= max_bytes:
         return text
+    # Reserve room for the ellipsis so the final text always fits the budget.
+    budget = max_bytes - len(ellipsis)
     # UTF-8 sequences are at most 4 bytes; back up at most 3 bytes from the cut.
-    for end in range(max_bytes, max(0, max_bytes - 4), -1):
+    for end in range(budget, max(0, budget - 4), -1):
         try:
             return encoded[:end].decode("utf-8") + "…"
         except UnicodeDecodeError:
             continue
     # Should never reach here for valid UTF-8 input, but the fallback is safe.
-    return text[:max_bytes] + "…"
+    return text[:budget] + "…"
 
 
 def send_push(subscription, payload, vapid_private_key):
@@ -121,6 +128,33 @@ def remove_subscription(endpoint):
     print(f"Removed dead subscription: {endpoint[:60]}...")
 
 
+def build_payload(idx, koan, base_url=None):
+    """Build the Web Push payload for a koan.
+
+    Title is the koan title, shown on the second line on iOS; the OS-level
+    app header above it cannot be removed by a web push (002.2 tweak).
+    Body stays the koan text, so the visible notification is the teaching.
+
+    Args:
+        idx: koan index for the deep link URL.
+        koan: koan dict with "title" and "koan_text" keys.
+        base_url: optional BASE_URL override (defaults to DEFAULT_BASE_URL).
+
+    Returns:
+        dict: a JSON-serializable payload for pywebpush/webpush.
+    """
+    body = truncate_utf8_bytes(koan["koan_text"])
+    url = base_url or os.environ.get("BASE_URL", DEFAULT_BASE_URL)
+    koan_url = f"{url.rstrip('/')}/koan/{idx}"
+    return {
+        "title": koan["title"],
+        "body": body,
+        "icon": "/static/icon-192.png",
+        "badge": "/static/badge-72.png",
+        "data": {"url": koan_url},
+    }
+
+
 def main():
     """Timer entry point. Sends the current koan if the dedupe keys allow."""
     if not os.path.exists(VAPID_PRIVATE_PATH):
@@ -160,18 +194,7 @@ def main():
         return
 
     idx, koan = picked
-    body = truncate_utf8_bytes(koan["koan_text"])
-    url = os.environ.get("BASE_URL", DEFAULT_BASE_URL)
-    koan_url = f"{url.rstrip('/')}/koan/{idx}"
-
-    # Title is intentionally omitted; the service worker falls back to the app
-    # name, so the visible notification is just the koan body (002 tweak 2).
-    payload = {
-        "body": body,
-        "icon": "/static/icon-192.png",
-        "badge": "/static/badge-72.png",
-        "data": {"url": koan_url},
-    }
+    payload = build_payload(idx, koan)
 
     subscriptions = get_subscriptions()
     print(f"Sending to {len(subscriptions)} subscription(s)...")

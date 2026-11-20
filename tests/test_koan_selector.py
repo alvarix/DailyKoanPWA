@@ -285,6 +285,35 @@ class TestPushDecision(TempDbTestCase):
         assert picked is not None  # narrows Optional for the type checker
         self.assertEqual(picked[0], int(settings["current_index"]))
 
+    def test_payload_includes_koan_title(self):
+        """0.2.0: the push payload carries the koan title, not the app name."""
+        import push_sender
+
+        koans = [{"title": "Two Monks, Two Blinds", "koan_text": "koan body"}]
+        payload = push_sender.build_payload(0, koans[0])
+        self.assertEqual(payload["title"], "Two Monks, Two Blinds")
+        self.assertEqual(payload["body"], "koan body")
+
+    def test_payload_body_is_truncated(self):
+        """Long koan bodies are byte-truncated to the Web Push budget."""
+        import push_sender
+
+        long_text = "x " * 5000
+        koan = {"title": "T", "koan_text": long_text}
+        payload = push_sender.build_payload(0, koan)
+        self.assertLessEqual(len(payload["body"].encode("utf-8")), 750)
+        self.assertEqual(payload["title"], "T")
+
+    def test_whole_current_koans_fit(self):
+        """No current koan is truncated at the 750-byte payload limit."""
+        import push_sender
+
+        koans = load_koans()
+        for idx, koan in enumerate(koans):
+            payload = push_sender.build_payload(idx, koan)
+            body = payload["body"]
+            self.assertNotIn("…", body, msg=koan["title"])
+
 
 class TestLoadKoans(unittest.TestCase):
     """Progression ordering is metadata-driven, not file-order driven."""
