@@ -194,21 +194,11 @@
 
     <!-- Koan controls -->
     <div class="mt-14 flex items-center justify-center gap-3">
-      {% if mode == 'held' %}
-      <!-- Held mode: Next advances the global pointer for everyone (002 tweak 1) -->
-      <button @click="nextKoan()"
-              class="flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-ink-600 dark:text-[#a89f96] bg-paper-100 dark:bg-[#241f1c] hover:bg-paper-200 dark:hover:bg-[#2c2724] border border-paper-200 dark:border-[#38312d] rounded-full transition-colors">
-        Next Koan
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-      </button>
-      {% else %}
-      <!-- Daily mode: per-visitor browsing, unchanged from the original behavior -->
-      <a href="/koan/{{ (koan_index + 1) % total_koans }}"
+      <a href="/koan/{{ (koan_index + 1) % total_koans }}" @click="nextKoan($event)"
          class="flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-ink-600 dark:text-[#a89f96] bg-paper-100 dark:bg-[#241f1c] hover:bg-paper-200 dark:hover:bg-[#2c2724] border border-paper-200 dark:border-[#38312d] rounded-full transition-colors">
         Next Koan
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </a>
-      {% endif %}
       <button @click="randomKoan()"
               class="flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-ink-600 dark:text-[#a89f96] bg-paper-100 dark:bg-[#241f1c] hover:bg-paper-200 dark:hover:bg-[#2c2724] border border-paper-200 dark:border-[#38312d] rounded-full transition-colors">
         Random Koan
@@ -222,8 +212,8 @@
       </button>
     </div>
 
-    {% if not viewing_current %}
-    <!-- Deep-linked view: offer the way back to what everyone sees -->
+    {% if not is_home %}
+    <!-- Deep-linked view: offer the way back to the local reading position -->
     <div class="mt-8 flex justify-center">
       <a href="/"
          class="text-sm text-ink-600 dark:text-[#a89f96] underline decoration-paper-200 dark:decoration-[#38312d] underline-offset-4 hover:text-ink-800 dark:hover:text-[#cfc7be] transition-colors">
@@ -282,28 +272,14 @@
       <p class="text-xs tracking-widest uppercase text-ink-600 dark:text-[#a89f96] mb-3">Koan mode</p>
       <div class="flex gap-2 mb-2">
         <button @click="setMode('held')"
-                :class="settings.mode === 'held' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
+                :class="mode === 'held' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
                 class="flex-1 px-4 py-2 rounded-full text-sm font-medium border transition-colors">Hold</button>
         <button @click="setMode('daily')"
-                :class="settings.mode === 'daily' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
+                :class="mode === 'daily' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
                 class="flex-1 px-4 py-2 rounded-full text-sm font-medium border transition-colors">Daily</button>
       </div>
       <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-9">
-        Hold keeps one koan for everyone until Next is pressed. Daily rotates to a new koan each day.
-      </p>
-
-      <!-- Koan order -->
-      <p class="text-xs tracking-widest uppercase text-ink-600 dark:text-[#a89f96] mb-3">Koan order</p>
-      <div class="flex gap-2 mb-2">
-        <button @click="setProgression('ordered')"
-                :class="settings.progression === 'ordered' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
-                class="flex-1 px-4 py-2 rounded-full text-sm font-medium border transition-colors">In order</button>
-        <button @click="setProgression('random')"
-                :class="settings.progression === 'random' ? 'bg-ink-950 dark:bg-[#ece7e0] text-paper-50 dark:text-[#1a1714] border-ink-950 dark:border-[#ece7e0]' : 'bg-paper-100 dark:bg-[#241f1c] text-ink-600 dark:text-[#a89f96] border-paper-200 dark:border-[#38312d] hover:bg-paper-200 dark:hover:bg-[#2c2724]'"
-                class="flex-1 px-4 py-2 rounded-full text-sm font-medium border transition-colors">Random</button>
-      </div>
-      <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-9">
-        In order walks the classic collections case by case. Random jumps somewhere new each Next.
+        Hold saves your reading position on this device. Daily rotates to a new koan each day.
       </p>
 
       <!-- Push time -->
@@ -319,7 +295,7 @@
            this time + the saved timezone gate the send. Changed here, applied
            from tomorrow's first qualifying tick. -->
       <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-2">
-        Delivered once a day at this local time. Held mode re-announces the current koan every day until you press Next.
+        Delivered once a day at this local time. Tap the reminder to open your koan.
       </p>
       <p class="text-xs text-ink-600 dark:text-[#a89f96] leading-relaxed mb-2">
         Timezone: <span class="text-ink-800 dark:text-[#cfc7be]" x-text="settings.push_timezone"></span>
@@ -385,11 +361,8 @@
         toastMessage: '',
         toastTimer: null,
         vapidPublicKey: '{{ vapid_public_key }}',
-        // Server-rendered global settings (docs/002): mode + progression are
-        // global by design — one koan for everyone, single operator.
+        mode: 'daily',
         settings: {
-          mode: '{{ mode }}',
-          progression: '{{ progression }}',
           push_timezone: '{{ push_timezone }}',
         },
         today: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
@@ -404,6 +377,7 @@
             if (mq.addEventListener) mq.addEventListener('change', onChange);
             else if (mq.addListener) mq.addListener(onChange);
           }
+          if (await this.resumeHeld()) return;
           this.checkSubscription();
           // 0.1.8: auto-detect the device IANA zone and record it — the
           // single operator's device IS the delivery zone. Silent unless the
@@ -436,30 +410,16 @@
           if (meta) meta.setAttribute('content', dark ? '#1a1714' : '#faf9f6');
         },
 
-        // --- Global settings (server state, docs/002) ---
-
+        /** Save the device mode and return home to render it. */
         async setMode(mode) {
           try {
-            const res = await fetch('/api/mode', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ mode })
-            });
-            if (res.ok) window.location.reload();
-            else console.error('Mode change failed:', res.status);
-          } catch (e) { console.error('Mode change error:', e); }
-        },
-
-        async setProgression(value) {
-          try {
-            const res = await fetch('/api/settings', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ progression: value })
-            });
-            if (res.ok) window.location.reload();
-            else console.error('Order change failed:', res.status);
-          } catch (e) { console.error('Order change error:', e); }
+            if (localStorage.getItem('dk-index') === null) {
+              localStorage.setItem('dk-index', {{ held_seed }});
+            }
+            localStorage.setItem('dk-mode', mode);
+            await this.saveNotificationSnapshot(mode);
+            window.location.replace('/');
+          } catch (e) { this.showToast('This device could not save your koan mode.'); }
         },
 
         async savePushTime() {
@@ -510,26 +470,77 @@
 
         // --- Koan navigation ---
 
-        async nextKoan() {
-          // Held mode: advance the global pointer, then re-render.
-          try {
-            const res = await fetch('/api/next', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: '{}'
-            });
-            if (res.ok) { window.location.assign('/'); return; }
-            if (res.status === 409) { window.location.reload(); return; }
-            console.error('Next koan failed:', res.status);
-          } catch (e) { console.error('Next koan error:', e); }
+        /** Read the bookmark, wrapping safely if the corpus size changed. */
+        heldIndex() {
+          const raw = localStorage.getItem('dk-index');
+          const index = raw === null ? {{ held_seed }} : Number(raw);
+          const total = {{ total_koans }};
+          return Number.isSafeInteger(index) ? ((index % total) + total) % total : {{ held_seed }};
         },
 
+        /** Resume only from home; direct links never seed or move the bookmark. */
+        async resumeHeld() {
+          const isHome = {{ is_home | tojson }};
+          const missing = {{ held_missing | tojson }};
+          try {
+            if (missing) {
+              window.history.replaceState(null, '', '/');
+              this.showToast('Saved koan unavailable. Showing today’s koan.');
+              localStorage.setItem('dk-index', {{ held_seed }});
+            }
+            // A cached home page can also be served for an offline deep link.
+            const atHome = isHome && window.location.pathname === '/';
+            if (atHome && localStorage.getItem('dk-index') === null) {
+              localStorage.setItem('dk-index', {{ held_seed }});
+              localStorage.setItem('dk-mode', 'held');
+            }
+            this.mode = localStorage.getItem('dk-mode') === 'held' ? 'held' : 'daily';
+            if (!isHome && new URLSearchParams(window.location.search).get('resume') === '1') {
+              window.history.replaceState(null, '', window.location.pathname);
+            }
+            if (localStorage.getItem('dk-index') !== null) {
+              await this.saveNotificationSnapshot(this.mode);
+            }
+            if (!atHome || missing || this.mode !== 'held') return false;
+            window.location.replace('/koan/' + this.heldIndex() + '?resume=1');
+            return true;
+          } catch (e) { /* Today's server-rendered page is the fallback. */ }
+          return false;
+        },
+
+        /** Advance from the bookmark in held mode; otherwise follow the link. */
+        async nextKoan(event) {
+          try {
+            if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey ||
+                event.altKey || localStorage.getItem('dk-mode') !== 'held') return;
+            const next = (this.heldIndex() + 1) % {{ total_koans }};
+            localStorage.setItem('dk-index', next);
+            event.preventDefault();
+            await this.saveNotificationSnapshot('held');
+            window.location.assign('/koan/' + next + '?resume=1');
+          } catch (e) { /* Follow the ordinary link if storage is blocked. */ }
+        },
+
+        /** Publish the bookmark text (not the displayed page) to the push worker. */
+        async saveNotificationSnapshot(mode) {
+          try {
+            const cache = await caches.open('daily-koan-notification-v1');
+            // Read after opening the cache so delayed writes use the latest bookmark.
+            if (mode !== localStorage.getItem('dk-mode')) return;
+            const texts = {{ notification_texts | tojson }};
+            const body = mode === 'held' ? texts[this.heldIndex()] : null;
+            await cache.put('/__dk_notification__', new Response(JSON.stringify({ mode, body })));
+          } catch (e) { /* Reading still works if notification storage is unavailable. */ }
+        },
+
+        /** Browse another koan without moving the bookmark. */
         randomKoan() {
           const total = {{ total_koans }};
           const current = {{ koan_index }};
-          let pick = current;
-          while (pick === current && total > 1) pick = Math.floor(Math.random() * total);
-          window.location.assign('/koan/' + pick);
+          if (total > 1) {
+            const offset = 1 + Math.floor(Math.random() * (total - 1));
+            window.location.assign('/koan/' + ((current + offset) % total));
+          }
         },
 
         // --- Toast (in-page feedback; replaces alert() popups, 002 cleanup) ---

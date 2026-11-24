@@ -1,15 +1,5 @@
 # pyright: reportMissingImports=false
-"""
-Flask application for Daily Koan PWA.
-
-Serves the PWA frontend and API endpoints for koans, push subscriptions, and
-the global settings that control koan selection (docs/002).
-
-All koan-selection state lives in koan_selector.py — the one shared code path
-imported by both this app (gunicorn) and push_sender.py (systemd timer) — so
-the site and the push can never disagree about which koan is current
-(push-pipeline ADR; docs/003 "Componentizing the same-koan logic").
-"""
+"""Serve stateless koan pages and manage push delivery and subscriptions."""
 
 import os
 import re
@@ -20,10 +10,7 @@ from flask import Flask, jsonify, render_template, request, send_from_directory
 
 import koan_selector
 from koan_selector import (
-    VALID_MODES,
-    VALID_PROGRESSIONS,
-    advance,
-    current_index,
+    daily_index,
     ensure_settings,
     get_settings,
     load_koans,
@@ -53,7 +40,7 @@ if os.path.exists(vapid_public_path):
 
 app = Flask(__name__)
 
-# Idempotent, additive settings migration (data-model ADR). Safe to run at
+# Idempotent settings migration (data-model ADR). Safe to run at
 # every process start: creates the settings table and seeds defaults if the
 # schema version is behind. push_sender.py runs the same function.
 ensure_settings()
@@ -86,67 +73,54 @@ def same_origin():
     return not netloc or netloc == request.host
 
 
-def _current_state():
-    """Return (koans, settings, current_index) — everything selection needs."""
-    koans = load_koans()
+def _render_koan(koans, idx, *, is_home=False, held_missing=False):
+    """Render a koan with delivery preferences and the read-only legacy seed."""
     settings = get_settings()
-    return koans, settings, current_index(settings, len(koans))
-
-
-def _page_context(koan, idx, cur):
-    """Template context shared by / and /koan/<idx> (deep links)."""
-    settings = get_settings()
-    return {
-        "koan": koan,
-        "koan_index": idx,
-        "total_koans": len(load_koans()),
-        "mode": settings.get("mode", "held"),
-        "progression": settings.get("progression", "ordered"),
-        "push_time": settings.get("push_time", "08:00"),
-        "push_timezone": settings.get("push_timezone", "America/New_York"),
-        "current_index": cur,
-        "viewing_current": idx == cur,
-        "vapid_public_key": VAPID_PUBLIC_KEY,
-    }
-
-
-# ----------- Routes -----------
+    try:
+        seed = int(settings.get("current_index", 0)) % len(koans)
+    except (TypeError, ValueError):
+        seed = 0
+    return render_template(
+        "index.html",
+        koan=koans[idx],
+        koan_index=idx,
+        total_koans=len(koans),
+        is_home=is_home,
+        held_seed=seed,
+        held_missing=held_missing,
+        vapid_public_key=VAPID_PUBLIC_KEY,
+        notification_texts=[koan["koan_text"] for koan in koans],
+        push_time=settings.get("push_time", "08:00"),
+        push_timezone=settings.get("push_timezone", "America/New_York"),
+    )
 
 
 @app.route("/")
 def index():
-    """Serve the main PWA page with the currently-selected koan."""
-    koans, _settings, cur = _current_state()
-    return render_template("index.html", **_page_context(koans[cur], cur, cur))
+    """Serve today's UTC-date koan; the browser may resume its bookmark."""
+    koans = load_koans()
+    return _render_koan(koans, daily_index(len(koans)), is_home=True)
 
 
 @app.route("/koan/<int:index>")
 def koan_by_index(index):
-    """Deep link to a specific koan. Per-visitor navigation only.
-
-    Deliberately does NOT move the global pointer — only POST /api/next
-    (held mode) or the date (daily mode) changes what everyone sees
-    (docs/002).
-    """
-    koans, _settings, cur = _current_state()
+    """Render a deep link without changing any bookmark."""
+    koans = load_koans()
     if 0 <= index < len(koans):
-        return render_template("index.html", **_page_context(koans[index], index, cur))
+        return _render_koan(koans, index)
+    if request.args.get("resume") == "1":
+        return _render_koan(
+            koans, daily_index(len(koans)), is_home=True, held_missing=True
+        ), 404
     return jsonify({"error": "Koan not found"}), 404
 
 
 @app.route("/api/today")
 def api_today():
-    """API: the current koan (mode-aware) as JSON."""
-    koans, settings, cur = _current_state()
-    return jsonify(
-        {
-            "koan": koans[cur],
-            "index": cur,
-            "total": len(koans),
-            "mode": settings.get("mode", "held"),
-            "current_index": cur,
-        }
-    )
+    """Return today's deterministic UTC-date koan."""
+    koans = load_koans()
+    idx = daily_index(len(koans))
+    return jsonify(koan=koans[idx], index=idx, total=len(koans))
 
 
 @app.route("/api/koan/<int:index>")
@@ -159,39 +133,10 @@ def api_koan(index):
 
 
 @app.route("/api/next", methods=["POST"])
-def api_next():
-    """Advance the global held-mode pointer to the next koan.
-
-    409 in daily mode — the endpoint only means something when the pointer
-    is the source of truth (docs/002). The advance itself is atomic and
-    wraps around the end of the list (koan_selector.advance).
-    """
-    settings = get_settings()
-    if settings.get("mode") != "held":
-        return jsonify({"error": "Next is only available in held mode"}), 409
-    if not same_origin():
-        return jsonify({"error": "Cross-origin request rejected"}), 403
-    koans = load_koans()
-    nxt = advance(total=len(koans))
-    return jsonify({"success": True, "index": nxt, "total": len(koans)})
-
-
 @app.route("/api/mode", methods=["POST"])
-def api_mode():
-    """Explicitly set held/daily mode (idempotent — never a blind toggle).
-
-    Switching clears both push-dedupe keys so the next 08:00 timer run pushes
-    once in the new mode instead of being silenced by a stale key
-    (koan_selector.set_values; push-pipeline ADR).
-    """
-    if not same_origin():
-        return jsonify({"error": "Cross-origin request rejected"}), 403
-    data = request.get_json(silent=True) or {}
-    mode = data.get("mode")
-    if mode not in VALID_MODES:
-        return jsonify({"error": "mode must be 'held' or 'daily'"}), 400
-    set_values(mode=mode)
-    return jsonify({"success": True, "mode": mode})
+def retired_progression():
+    """Tell stale clients that server-side progression is gone."""
+    return jsonify(error="Koan progression is now device-local"), 410
 
 
 @app.route("/api/settings", methods=["GET"])
@@ -202,25 +147,18 @@ def api_settings_get():
 
 @app.route("/api/settings", methods=["POST"])
 def api_settings_post():
-    """API: update settings — push_time (HH:MM) and progression.
-
-    push_time is the recorded daily-push preference; the systemd timer
-    currently fires at 08:00 UTC, so actually moving delivery time is an ops
-    step (docs/003 "Open items"; the UI says this rather than lying).
-    """
+    """Update only push delivery time and timezone."""
     if not same_origin():
         return jsonify({"error": "Cross-origin request rejected"}), 403
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or data.keys() - {"push_time", "push_timezone"}:
+        return jsonify(error="Only push_time and push_timezone can be updated"), 400
     updates = {}
     if "push_time" in data:
         value = data["push_time"]
         if not isinstance(value, str) or not PUSH_TIME_RE.match(value):
             return jsonify({"error": "push_time must be HH:MM (24h)"}), 400
         updates["push_time"] = value
-    if "progression" in data:
-        if data["progression"] not in VALID_PROGRESSIONS:
-            return jsonify({"error": "progression must be 'ordered' or 'random'"}), 400
-        updates["progression"] = data["progression"]
     if "push_timezone" in data:
         # 0.1.8: delivery time became data. The client auto-syncs its IANA
         # zone here (single operator — the device zone IS the right zone);

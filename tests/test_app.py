@@ -1,10 +1,4 @@
-"""Route tests for app.py — the 002 surface: mode, next, settings, deep links.
-
-Uses Flask's test client against a throwaway temp DB (patched into
-koan_selector.DB_PATH BEFORE importing app, so the app's own startup
-migration never touches the real subscriptions.db). No network, no VAPID,
-no subscriptions table needed for these paths.
-"""
+"""HTTP and template contracts against an isolated SQLite database."""
 
 import html
 import sys
@@ -24,7 +18,6 @@ koan_selector.DB_PATH = DB
 
 import app as app_module  # noqa: E402  (must come after the patch)
 from koan_selector import (  # noqa: E402
-    daily_index,
     get_settings,
     set_values,
 )
@@ -33,126 +26,68 @@ TOTAL = len(koan_selector.load_koans())
 
 
 class AppTestCase(unittest.TestCase):
-    """One shared test DB; each test sets the mode it needs."""
+    """Exercise Flask routes without touching the real subscriptions DB."""
 
     def setUp(self):
         app_module.app.config["TESTING"] = True
         self.client = app_module.app.test_client()
-        self.reset(mode="held", current_index=2)
-
-    @staticmethod
-    def reset(mode, current_index):
-        """Force a known global state (mode + pointer)."""
-        set_values(mode=mode)
+        set_values(push_time="08:00", push_timezone="America/New_York")
         conn = koan_selector.connect(DB)
-        conn.execute(
-            "UPDATE settings SET value = ? WHERE key = 'current_index'",
-            (str(current_index),),
+        try:
+            with conn:
+                conn.execute(
+                    "UPDATE settings SET value = '2' WHERE key = 'current_index'"
+                )
+        finally:
+            conn.close()
+
+    def test_home_renders_daily_and_exposes_legacy_seed(self):
+        from unittest.mock import patch
+
+        with patch.object(app_module, "daily_index", return_value=4):
+            page = self.client.get("/").get_data(as_text=True)
+        self.assertIn(load_koans()[4]["title"], html.unescape(page))
+        self.assertIn("localStorage.setItem('dk-index', 2)", page)
+        for retired in ("/api/next", "/api/mode", "In order", ">Random</button>"):
+            self.assertNotIn(retired, page)
+        with self.client.get("/sw.js") as worker:
+            self.assertIn("daily-koan-v4", worker.get_data(as_text=True))
+
+    def test_deep_link_does_not_change_seed_and_missing_returns_404(self):
+        response = self.client.get("/koan/4")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            load_koans()[4]["title"], html.unescape(response.get_data(as_text=True))
         )
-        conn.commit()
-        conn.close()
+        self.assertEqual(get_settings()["current_index"], "2")
+        self.assertEqual(self.client.get(f"/koan/{TOTAL}").status_code, 404)
 
-    # --- pages ---
+    def test_missing_held_navigation_renders_today_as_html(self):
+        from unittest.mock import patch
 
-    def test_index_serves_current_koan_held(self):
-        self.reset(mode="held", current_index=5)
-        res = self.client.get("/")
-        self.assertEqual(res.status_code, 200)
-        # Jinja autoescapes (&#39;), so compare against the unescaped page.
-        page = html.unescape(res.get_data(as_text=True))
-        self.assertIn(load_koans()[5]["title"], page)
+        with patch.object(app_module, "daily_index", return_value=4):
+            response = self.client.get(f"/koan/{TOTAL}?resume=1")
+        self.assertEqual(response.status_code, 404)
+        page = html.unescape(response.get_data(as_text=True))
+        self.assertIn(load_koans()[4]["title"], page)
+        self.assertIn("const missing = true;", page)
+        self.assertEqual(get_settings()["current_index"], "2")
 
-    def test_index_serves_daily_koan(self):
-        self.reset(mode="daily", current_index=5)
-        res = self.client.get("/")
-        self.assertEqual(res.status_code, 200)
-        page = html.unescape(res.get_data(as_text=True))
-        expected = load_koans()[daily_index(TOTAL)]["title"]
-        self.assertIn(expected, page)
-
-    def test_koan_deep_link_renders_without_moving_pointer(self):
-        """Deep links are per-visitor navigation only (docs/002)."""
-        self.reset(mode="held", current_index=2)
-        res = self.client.get("/koan/9")
-        self.assertEqual(res.status_code, 200)
-        page = html.unescape(res.get_data(as_text=True))
-        self.assertIn(load_koans()[9]["title"], page)
-        settings = get_settings()
-        self.assertEqual(int(settings["current_index"]), 2)
-
-    def test_koan_deep_link_out_of_range_404s(self):
-        res = self.client.get(f"/koan/{TOTAL + 5}")
-        self.assertEqual(res.status_code, 404)
-
-    # --- /api/next ---
-
-    def test_next_advances_pointer_held(self):
-        res = self.client.post("/api/next")
-        self.assertEqual(res.status_code, 200)
-        body = res.get_json()
-        self.assertTrue(body["success"])
-        self.assertEqual(body["index"], 3)  # 2 -> 3
-
-    def test_next_wraps_around(self):
-        self.reset(mode="held", current_index=TOTAL - 1)
-        res = self.client.post("/api/next")
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.get_json()["index"], 0)
-
-    def test_next_409_in_daily_mode(self):
-        self.reset(mode="daily", current_index=2)
-        res = self.client.post("/api/next")
-        self.assertEqual(res.status_code, 409)
-
-    # --- /api/mode ---
-
-    def test_mode_switch(self):
-        res = self.client.post(
-            "/api/mode",
-            json={"mode": "daily"},
-        )
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.get_json()["mode"], "daily")
-        self.assertEqual(get_settings()["mode"], "daily")
-
-    def test_mode_switch_clears_dedupe_keys(self):
-        """Fresh push in the new mode, not silenced by stale dedupe keys."""
-        from koan_selector import mark_pushed
-
-        mark_pushed(DB, index=2, date="2026-11-16")
-        self.client.post("/api/mode", json={"mode": "daily"})
-        settings = get_settings()
-        self.assertEqual(settings["last_push_date"], "")
-        self.assertEqual(settings["last_push_index"], "")
-
-    def test_mode_invalid_value_400(self):
-        res = self.client.post("/api/mode", json={"mode": "weekly"})
-        self.assertEqual(res.status_code, 400)
-
-    def test_mode_cross_origin_403(self):
-        res = self.client.post(
-            "/api/mode",
-            json={"mode": "daily"},
-            headers={"Origin": "https://evil.example"},
-        )
-        self.assertEqual(res.status_code, 403)
-
-    def test_next_cross_origin_403(self):
-        res = self.client.post(
-            "/api/next",
-            headers={"Origin": "https://evil.example"},
-        )
-        self.assertEqual(res.status_code, 403)
-
-    # --- /api/settings ---
+    def test_retired_posts_cannot_change_settings(self):
+        before = get_settings()
+        for endpoint in ("/api/next", "/api/mode"):
+            self.assertEqual(self.client.post(endpoint).status_code, 410)
+        for key in ("progression", "mode", "current_index"):
+            response = self.client.post(
+                "/api/settings", json={key: "held", "push_time": "07:30"}
+            )
+            self.assertEqual(response.status_code, 400)
+        self.assertEqual(get_settings(), before)
 
     def test_settings_get_roundtrip(self):
-        res = self.client.get("/api/settings")
-        self.assertEqual(res.status_code, 200)
-        body = res.get_json()
-        self.assertEqual(body["mode"], "held")
+        body = self.client.get("/api/settings").get_json()
+        self.assertNotIn("mode", body)
         self.assertEqual(body["push_time"], "08:00")
-        # 0.1.8: the delivery zone is settings data (default from the seed)
         self.assertEqual(body["push_timezone"], "America/New_York")
 
     def test_settings_post_push_time(self):
@@ -181,15 +116,6 @@ class AppTestCase(unittest.TestCase):
             res = self.client.post("/api/settings", json={"push_timezone": bad})
             self.assertEqual(res.status_code, 400, msg=repr(bad))
 
-    def test_settings_post_progression(self):
-        res = self.client.post("/api/settings", json={"progression": "random"})
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(get_settings()["progression"], "random")
-
-    def test_settings_post_no_valid_keys_400(self):
-        res = self.client.post("/api/settings", json={"current_index": "999"})
-        self.assertEqual(res.status_code, 400)
-
     def test_settings_post_cross_origin_403(self):
         res = self.client.post(
             "/api/settings",
@@ -200,14 +126,12 @@ class AppTestCase(unittest.TestCase):
 
     # --- /api/today ---
 
-    def test_api_today_carries_mode(self):
-        self.reset(mode="held", current_index=4)
-        res = self.client.get("/api/today")
-        body = res.get_json()
-        self.assertEqual(body["mode"], "held")
-        self.assertEqual(body["index"], 4)
-        self.assertEqual(body["current_index"], 4)
-        self.assertEqual(body["koan"]["title"], load_koans()[4]["title"])
+    def test_api_today_is_stateless(self):
+        from unittest.mock import patch
+
+        with patch.object(app_module, "daily_index", return_value=4):
+            body = self.client.get("/api/today").get_json()
+        self.assertEqual(body, {"index": 4, "koan": load_koans()[4], "total": TOTAL})
 
     # --- 0.1.7 template surface (bell toggle redesign) ---
 

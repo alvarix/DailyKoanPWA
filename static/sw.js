@@ -3,7 +3,7 @@
  * Handles push notifications and basic caching.
  */
 
-const CACHE_NAME = 'daily-koan-v2'; // bumped from v1: 002 UI (header/drawer/night mode)
+const CACHE_NAME = 'daily-koan-v4';
 const urlsToCache = [
   '/',
   '/static/manifest.json'
@@ -25,46 +25,46 @@ self.addEventListener('fetch', event => {
   // Network-first for navigation, cache for static assets
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match('/'))
+      fetch(event.request).catch(() => caches.open(CACHE_NAME).then(cache => cache.match('/')))
     );
     return;
   }
   event.respondWith(
-    caches.match(event.request).then(response => {
+    caches.open(CACHE_NAME).then(cache => cache.match(event.request)).then(response => {
       return response || fetch(event.request);
     })
   );
 });
 
-self.addEventListener('push', event => {
-  let payload;
-  try {
-    payload = event.data.json();
-  } catch (e) {
-    payload = event.data.text();
+/** Resolve the notification locally, including while the app is closed. */
+async function showKoanNotification(event) {
+  let data = {};
+  try { data = event.data?.json() || {}; } catch {
+    data = { body: event.data?.text() };
   }
 
-  const data = typeof payload === 'string' ? { body: payload } : payload;
+  let body = data.body || 'Your koan awaits.';
+  try {
+    const cache = await caches.open('daily-koan-notification-v1');
+    const record = await cache.match('/__dk_notification__');
+    const snapshot = record && await record.json();
+    if (snapshot?.mode === 'held' && snapshot.body) body = snapshot.body;
+    if (snapshot?.mode === 'daily' && data.dailyBody) body = data.dailyBody;
+  } catch { /* Still show a visible notification if storage was cleared. */ }
 
-  const title = data.title || '';
-  const body = data.body || 'A new koan awaits.';
-  // On iOS the system renders an app header + optional subtitle above the
-  // notification body. Passing a non-empty title puts the koan title there,
-  // replacing the fallback "Daily Koan" second line. The koan body stays
-  // the main notification text.
-  const options = {
+  return self.registration.showNotification('', {
     body,
     icon: data.icon || '/static/icon-192.png',
     badge: data.badge || '/static/badge-72.png',
-    data: data.data || { url: '/' },
+    data: { url: '/' },
     tag: 'daily-koan',
     renotify: false,
     requireInteraction: false
-  };
+  });
+}
 
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
+self.addEventListener('push', event => {
+  event.waitUntil(showKoanNotification(event));
 });
 
 self.addEventListener('notificationclick', event => {

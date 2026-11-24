@@ -1,33 +1,16 @@
 #!/usr/bin/env python3
-"""
-Standalone push sender (dailykoan-push.service, hourly timer tick).
-
-The timer is the ONLY push mechanism (push-pipeline ADR): nothing in the Flask
-app ever broadcasts. Since 0.1.8 the timer ticks HOURLY and this script decides
-at run time — via koan_selector, the same shared module the app imports —
-whether the configured delivery moment has arrived and which koan goes out:
-
-  0.1.8 cadence (user decision 2026-11-19): BOTH modes deliver exactly once per
-  local push-day (settings push_time + push_timezone):
-    daily mode:  today's UTC-date-hash koan (same as the site serves).
-    held mode:   the current global pointer — re-announced EVERY day until
-                 Next advances it ("the same koan until I advance, every day").
-
-Every hourly run exits with a journaled reason: before the delivery moment,
-already delivered today, or a completed send loop. The dedupe key
-(last_push_local_date) is only written AFTER a completed loop
-(koan_selector.mark_pushed), so a crash mid-broadcast re-sends rather than
-silently skipping a day.
-"""
+"""Hourly push job: send a notification trigger once per delivery-zone day."""
 
 import json
 import os
 import sys
+from datetime import datetime, timezone
 
 from pywebpush import WebPushException, webpush
 
 import koan_selector
 from koan_selector import (
+    daily_index,
     delivery_window,
     ensure_settings,
     get_settings,
@@ -42,10 +25,6 @@ from koan_selector import (
 # ('bytes' object has no attribute 'encode' — CHANGELOG 0.1.3).
 VAPID_PRIVATE_PATH = os.path.join(os.path.dirname(__file__), "vapid_private.pem")
 
-# Public name from the deployment ADR; override for local/ngrok testing.
-DEFAULT_BASE_URL = "https://dailykoan.duckdns.org/"
-
-
 def get_subscriptions():
     """All active push subscriptions (endpoint, p256dh, auth)."""
     conn = koan_selector.connect()
@@ -54,34 +33,6 @@ def get_subscriptions():
     rows = cursor.fetchall()
     conn.close()
     return rows
-
-
-def truncate_utf8_bytes(text, max_bytes=750):
-    """Truncate text to fit within max_bytes UTF-8 bytes without splitting a codepoint.
-
-    Web Push payloads must stay under the client's encrypted-size budget. A plain
-    character count can overshoot because multi-byte codepoints and JSON escaping
-    both cost bytes. This function works on the UTF-8 byte representation and backs
-    up to the last complete codepoint before appending an ellipsis.
-
-    Current longest koan is ~350 bytes, but the banner display on iOS still
-    truncates visually. Raising the payload limit to 750 gives headroom for
-    future longer koans while staying well under the encrypted-size budget.
-    """
-    ellipsis = "…".encode()
-    encoded = text.encode("utf-8")
-    if len(encoded) <= max_bytes:
-        return text
-    # Reserve room for the ellipsis so the final text always fits the budget.
-    budget = max_bytes - len(ellipsis)
-    # UTF-8 sequences are at most 4 bytes; back up at most 3 bytes from the cut.
-    for end in range(budget, max(0, budget - 4), -1):
-        try:
-            return encoded[:end].decode("utf-8") + "…"
-        except UnicodeDecodeError:
-            continue
-    # Should never reach here for valid UTF-8 input, but the fallback is safe.
-    return text[:budget] + "…"
 
 
 def send_push(subscription, payload, vapid_private_key):
@@ -128,35 +79,19 @@ def remove_subscription(endpoint):
     print(f"Removed dead subscription: {endpoint[:60]}...")
 
 
-def build_payload(idx, koan, base_url=None):
-    """Build the Web Push payload for a koan.
-
-    Title is the koan title, shown on the second line on iOS; the OS-level
-    app header above it cannot be removed by a web push (002.2 tweak).
-    Body stays the koan text, so the visible notification is the teaching.
-
-    Args:
-        idx: koan index for the deep link URL.
-        koan: koan dict with "title" and "koan_text" keys.
-        base_url: optional BASE_URL override (defaults to DEFAULT_BASE_URL).
-
-    Returns:
-        dict: a JSON-serializable payload for pywebpush/webpush.
-    """
-    body = truncate_utf8_bytes(koan["koan_text"])
-    url = base_url or os.environ.get("BASE_URL", DEFAULT_BASE_URL)
-    koan_url = f"{url.rstrip('/')}/koan/{idx}"
+def build_payload(daily_body):
+    """Build a trigger with public Daily text, never a held bookmark."""
     return {
-        "title": koan["title"],
-        "body": body,
+        "body": "Your koan awaits.",
+        "dailyBody": daily_body,
         "icon": "/static/icon-192.png",
         "badge": "/static/badge-72.png",
-        "data": {"url": koan_url},
+        "data": {"url": "/"},
     }
 
 
 def main():
-    """Timer entry point. Sends the current koan if the dedupe keys allow."""
+    """Timer entry point. Sends a nudge when the delivery gate allows."""
     if not os.path.exists(VAPID_PRIVATE_PATH):
         print(f"ERROR: VAPID private key not found at {VAPID_PRIVATE_PATH}")
         print("Run: python init_vapid.py")
@@ -169,36 +104,22 @@ def main():
     # other process having started first).
     ensure_settings()
 
-    koans = load_koans()
     settings = get_settings()
-    picked = select_push(koans, settings)
-
-    if picked is None:
-        # Quiet exit — but say which gate closed, so a missed koan is
-        # diagnosable in the journal (push-pipeline ADR: the journal is the log).
-        mode = settings.get("mode")
-        local_date, local_hhmm = delivery_window(settings)
-        if not is_delivery_time(settings):
-            print(
-                "Before the delivery moment — next hourly tick may deliver "
-                f"(mode={mode}, local now {local_hhmm} {settings.get('push_timezone') or 'UTC'}, "
-                f"push_time={settings.get('push_time')})."
-            )
+    now = datetime.now(timezone.utc)
+    local_date, local_hhmm = delivery_window(settings, now)
+    if not select_push(settings, now):
+        if not is_delivery_time(settings, now):
+            print(f"Before delivery: local time {local_hhmm}, scheduled {settings['push_time']}.")
         else:
-            print(
-                "Already delivered today — dedupe "
-                f"(mode={mode}, local_date={local_date}, "
-                f"last_push_date={settings.get('last_push_date') or '-'!r})."
-            )
+            print(f"Already delivered today — dedupe (local_date={local_date}).")
         print("Done. Sent: 0, Removed dead: 0, Failed (kept): 0")
         return
 
-    idx, koan = picked
-    payload = build_payload(idx, koan)
-
+    koans = load_koans()
+    payload = build_payload(koans[daily_index(len(koans), now.date().isoformat())]["koan_text"])
     subscriptions = get_subscriptions()
     print(f"Sending to {len(subscriptions)} subscription(s)...")
-    print(f"Koan to push: {koan['title']} (index {idx}, mode={settings.get('mode')})")
+    print(f"Daily notification trigger for {local_date} ({settings['push_timezone']}).")
 
     sent = dead = failed = 0
     for sub in subscriptions:
@@ -216,7 +137,7 @@ def main():
     # Dedupe keys only after a completed send loop (crash => re-send, not skip).
     # 0.1.8: date is the LOCAL delivery date in push_timezone (one push per
     # local day — the hourly ticks after the first delivery all dedupe here).
-    mark_pushed(index=idx)
+    mark_pushed(date=local_date)
 
     print(f"Done. Sent: {sent}, Removed dead: {dead}, Failed (kept): {failed}")
 

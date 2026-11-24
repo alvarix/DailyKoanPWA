@@ -1,10 +1,10 @@
 # Daily Koan PWA
 
-A minimal, Zen-inspired progressive web app that delivers a different koan every day via push notification to your iOS Home Screen. No accounts, no tracking, just a single moment of clarity.
+A minimal, Zen-inspired progressive web app that shows koan text in a daily notification on your iOS Home Screen. No accounts, no tracking, just a single moment of clarity.
 
 ## Features
 
-- **Held or Daily koan**: Hold mode serves everyone the same koan until someone taps Next — and re-announces it every day until then; Daily mode rotates deterministically by date. One tap in the settings drawer flips it
+- **Held or Daily koan**: Hold keeps your reading position on this device. Next advances in order; Random lets you browse without moving the bookmark. Daily rotates deterministically by UTC date. Change modes in the drawer.
 - **Delivery as data**: the push arrives once a day at your chosen local time (`push_time` + `push_timezone` in the drawer, DST-correct); the systemd timer ticks hourly and the settings gate decides which tick sends
 - **Ordered progression**: koans walk the classic texts (Mumonkan → Blue Cliff Record → others) case by case; a Random mode jumps instead
 - **Push Notifications**: iOS Safari 16.4+ and modern browsers via Web Push API; the alert carries the koan body itself
