@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Add short-lived per-subscription push tracing and best-effort worker receipts without logging subscription secrets.
+
 - Hold now saves a bookmark on each device. Next advances it in order; Random and deep links leave it alone. The server no longer accepts shared progression changes.
 - Push notifications show the held koan’s text from the device (or today’s text in Daily mode). No custom title is set; tapping opens the app.
 - Settings migration v3 preserves the old bookmark as a one-time seed and leaves delivery settings, dedupe dates, and subscriptions intact.

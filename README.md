@@ -78,3 +78,5 @@ Three runbooks, in execution order:
 
 MIT
 # DailyKoanPWA
+
+For missed notifications, see [the delivery investigation](docs/007--llm--bug-no-notifications.md) and [the tracing deploy and test guide](docs/007.1--llm--delivery-tracing-deploy.md).

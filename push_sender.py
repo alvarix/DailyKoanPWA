@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from pywebpush import WebPushException, webpush
 
+import delivery_trace
 import koan_selector
 from koan_selector import (
     daily_index,
@@ -29,7 +30,7 @@ def get_subscriptions():
     """All active push subscriptions (endpoint, p256dh, auth)."""
     conn = koan_selector.connect()
     cursor = conn.cursor()
-    cursor.execute("SELECT endpoint, p256dh, auth FROM subscriptions")
+    cursor.execute("SELECT endpoint, p256dh, auth, id FROM subscriptions")
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -58,14 +59,14 @@ def send_push(subscription, payload, vapid_private_key):
         )
         return True
     except WebPushException as e:
-        if e.response and e.response.status_code in (404, 410):
+        if e.response is not None and e.response.status_code in (404, 410):
             # Subscription confirmed gone (endpoint says so) - caller may remove it.
             return False
         # 403 BadJwtToken, 429 rate-limit, network failure: KEEP, just report.
-        print(f"Push error: {e}")
+        print("Push provider rejected request or transport failed")
         return None
     except Exception as e:
-        print(f"Unexpected push error: {e}")
+        print(f"Unexpected push error: {type(e).__name__}")
         return None
 
 
@@ -76,7 +77,7 @@ def remove_subscription(endpoint):
     cursor.execute("DELETE FROM subscriptions WHERE endpoint = ?", (endpoint,))
     conn.commit()
     conn.close()
-    print(f"Removed dead subscription: {endpoint[:60]}...")
+    print("Removed dead subscription")
 
 
 def build_payload(daily_body):
@@ -88,6 +89,23 @@ def build_payload(daily_body):
         "badge": "/static/badge-72.png",
         "data": {"url": "/"},
     }
+
+
+def traced_send(subscription, payload, vapid_private_key):
+    """Send once, keeping diagnostic failures independent of transport."""
+    token = None
+    try:
+        token = delivery_trace.begin(subscription[3])
+    except Exception:
+        print("Push trace setup unavailable")
+    result = send_push(subscription, {**payload, "trace": token} if token else payload, vapid_private_key)
+    if token:
+        print(f"Push trace: {delivery_trace.trace_id(token)[:16]} subscription_id={subscription[3]}")
+        try:
+            delivery_trace.finish(token, result)
+        except Exception:
+            print("Push trace outcome unavailable")
+    return result
 
 
 def main():
@@ -123,7 +141,7 @@ def main():
 
     sent = dead = failed = 0
     for sub in subscriptions:
-        ok = send_push(sub, payload, vapid_private_key)
+        ok = traced_send(sub, payload, vapid_private_key)
         if ok:
             sent += 1
         elif ok is False:

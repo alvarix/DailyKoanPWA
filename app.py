@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 
+import delivery_trace
 import koan_selector
 from koan_selector import (
     daily_index,
@@ -216,6 +217,17 @@ def api_unsubscribe():
     conn.close()
 
     return jsonify({"success": True})
+
+
+@app.post("/api/push-receipt")
+def push_receipt():
+    """Accept a bounded, capability-authenticated worker receipt."""
+    if not same_origin() or request.content_length is None or request.content_length > 256:
+        return "", 400
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return "", 400
+    return "", 204 if delivery_trace.receipt(data.get("token"), data.get("stage")) else 404
 
 
 @app.route("/manifest.json")

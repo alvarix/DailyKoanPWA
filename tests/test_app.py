@@ -41,6 +41,22 @@ class AppTestCase(unittest.TestCase):
         finally:
             conn.close()
 
+    def test_push_receipt_is_bound_to_attempt_and_survives_send_outcome(self):
+        import delivery_trace
+        token = delivery_trace.begin(42)
+        url = "/api/push-receipt"
+        self.assertEqual(self.client.post(url, json={"token": "0" * 48, "stage": "received"}).status_code, 404)
+        for _ in range(2):
+            self.assertEqual(self.client.post(url, json={"token": token, "stage": "display_requested"}).status_code, 204)
+        delivery_trace.finish(token, True)
+        from contextlib import closing
+        with closing(koan_selector.connect(DB)) as db:
+            row = db.execute("SELECT outcome, received_at, display_requested_at, display_failed_at FROM push_trace WHERE id = ?", (delivery_trace.trace_id(token),)).fetchone()
+        self.assertEqual(row[0], "accepted")
+        self.assertIsNotNone(row[1])
+        self.assertIsNotNone(row[2])
+        self.assertIsNone(row[3])
+
     def test_home_renders_daily_and_exposes_legacy_seed(self):
         from unittest.mock import patch
 
@@ -51,7 +67,7 @@ class AppTestCase(unittest.TestCase):
         for retired in ("/api/next", "/api/mode", "In order", ">Random</button>"):
             self.assertNotIn(retired, page)
         with self.client.get("/sw.js") as worker:
-            self.assertIn("daily-koan-v4", worker.get_data(as_text=True))
+            self.assertIn("daily-koan-v5", worker.get_data(as_text=True))
 
     def test_deep_link_does_not_change_seed_and_missing_returns_404(self):
         response = self.client.get("/koan/4")

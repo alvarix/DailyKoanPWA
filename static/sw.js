@@ -3,7 +3,7 @@
  * Handles push notifications and basic caching.
  */
 
-const CACHE_NAME = 'daily-koan-v4';
+const CACHE_NAME = 'daily-koan-v5';
 const urlsToCache = [
   '/',
   '/static/manifest.json'
@@ -36,6 +36,20 @@ self.addEventListener('fetch', event => {
   );
 });
 
+/** Report a capability-bound stage without delaying display. */
+async function reportPush(token, stage) {
+  if (typeof token !== 'string' || !/^[a-f0-9]{48}$/.test(token)) return;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+  try {
+    await fetch('/api/push-receipt', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, stage }), credentials: 'omit', signal: controller.signal
+    });
+  } catch { /* A missing receipt does not imply a missing notification. */ }
+  finally { clearTimeout(timer); }
+}
+
 /** Resolve the notification locally, including while the app is closed. */
 async function showKoanNotification(event) {
   let data = {};
@@ -43,6 +57,7 @@ async function showKoanNotification(event) {
     data = { body: event.data?.text() };
   }
 
+  const received = reportPush(data.trace, 'received');
   let body = data.body || 'Your koan awaits.';
   try {
     const cache = await caches.open('daily-koan-notification-v1');
@@ -52,7 +67,8 @@ async function showKoanNotification(event) {
     if (snapshot?.mode === 'daily' && data.dailyBody) body = data.dailyBody;
   } catch { /* Still show a visible notification if storage was cleared. */ }
 
-  return self.registration.showNotification('', {
+  try {
+    await self.registration.showNotification('', {
     body,
     icon: data.icon || '/static/icon-192.png',
     badge: data.badge || '/static/badge-72.png',
@@ -60,7 +76,12 @@ async function showKoanNotification(event) {
     tag: 'daily-koan',
     renotify: false,
     requireInteraction: false
-  });
+    });
+  } catch (error) {
+    await Promise.all([received, reportPush(data.trace, 'display_failed')]);
+    throw error;
+  }
+  await Promise.all([received, reportPush(data.trace, 'display_requested')]);
 }
 
 self.addEventListener('push', event => {
